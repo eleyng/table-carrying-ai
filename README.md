@@ -1,6 +1,6 @@
 # Table Carrying (╯°□°）╯┬─┬ノ( ◕◡◕ ノ)
 
-An environment for table-carrying, a joint-action cooperative task.
+An environment for table-carrying, a *joint-action* cooperative task.
 
 *[TODO]: Insert gif*
 
@@ -8,7 +8,7 @@ An environment for table-carrying, a joint-action cooperative task.
 
 This is a continuous state-action custom environment for a two-agent cooperative carrying task. Possible configurations are human-human, human-robot, and robot-robot. 
 
-The objective is to carry the table from start to goal while avoiding obstacles. Rewards can be customized to achieve task success (reaching goal without hitting obstacles), but also other cooperative objectives (minimal interaction forces, etc. for *fluency*).
+The objective is to carry the table from start to goal while avoiding obstacles. Each agent is physically constrained to the table while moving it. Rewards can be customized to achieve task success (reaching goal without hitting obstacles), but also other cooperative objectives (minimal interaction forces, etc. for *fluency*).
 
 The main branch environment is used in the 2023 paper *[It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying](https://arxiv.org/abs/2209.12890)*. 
 
