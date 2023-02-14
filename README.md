@@ -19,8 +19,8 @@ We recommend using any environment manager to keep your dependencies clean. For 
   `conda create --name table python=3.8`
   `conda activate table`
 2. Clone this repo using `git clone git@github.com:eley-ng/table-carrying-ai.git`.
-3. Install the dependencies using `pip install -r requirements.txt --use-deprecated=legacy-resolver`. The legacy resolver runs quickly and will help with resolving dependencies.
-4. Go to the top-level directory, install the package with `pip install -e .`.
+3. Install the dependencies using `pip install -r requirements.txt --use-deprecated=legacy-resolver`.
+4. `cd ../; pip install -e .` to install.
 5. Test that the install worked by running: `python scripts/cooperative-transport/cooperative_transport/gym_table/test/test.py`.
 
 ## Code Structure Overview
@@ -36,6 +36,23 @@ We recommend using any environment manager to keep your dependencies clean. For 
   - `test/` : houses scripts for interacting with env
     - `test_joystick.py` : checks if joysticks are configured correctly
     - `play.py` : run this to collect human-human demos
+
+```
+└── cooperative-transport
+    ├── config
+    │   ├── maps
+    │   │   ├── rnd_obstacle_v2.yml
+    │   │   └── ... (custom map configurations specified here)
+    │   ├── game_objects_params.yml : specify physics parameters and video rendering parameters
+    │   └── inference_params.yml
+    ├── envs
+    │   ├── __init__.py
+    │   ├── game_objects
+    │   │   ├── images
+    │   │   │   └── ... (images for the game)
+    │   │   └── game_objects.py 
+```
+
     
 ## TODO:
 - add gif
