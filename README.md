@@ -1,6 +1,6 @@
-# Table Carrying
+# Table Carrying Simulator
 
-An environment for table-carrying, a *joint-action* cooperative task. (╯°□°）╯┬─┬ノ( ◕◡◕ ノ)
+A custom gym environment for table-carrying, a *joint-action* cooperative task. (╯°□°）╯┬─┬ノ( ◕◡◕ ノ)
 
 *[TODO]: Insert gif*
 
