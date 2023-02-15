@@ -13,8 +13,7 @@ This is a continuous state-action custom environment for a two-agent cooperative
 
 The objective is to carry the table from start to goal while avoiding obstacles. Each agent is physically constrained to the table while moving it. Rewards can be customized to achieve task success (reaching goal without hitting obstacles), but also other cooperative objectives (minimal interaction forces, etc. for *fluency*).
 
-The main branch environment is used in the 2023 ICRA paper *[It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying](https://arxiv.org/abs/2209.12890)* [1].  
-Link to [video](https://www.youtube.com/watch?v=CqWh-yWOgeA).
+The main branch environment is used in the 2023 ICRA paper *[It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying](https://arxiv.org/abs/2209.12890)* [1]. Link to [video](https://www.youtube.com/watch?v=CqWh-yWOgeA).
 
 
 ## Installation
