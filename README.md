@@ -25,7 +25,7 @@ We recommend using any environment manager to keep your dependencies clean. For 
 
 ## Custom Env Structure Overview
 
-`table-carrying-ai` contains:
+The core custom environment code is under `cooperative-transport`, which contains:
 
 ```
 └── cooperative-transport/
@@ -36,27 +36,31 @@ We recommend using any environment manager to keep your dependencies clean. For 
     │   ├── game_objects_params.yml : specify physics parameters and video rendering parameters
     │   └── inference_params.yml
     ├── envs/
-    │   ├── __init__.py
-    │   ├── game_objects/
-    │   │   ├── images/
-    │   │   │   └── ... (images for the game)
-    │   │   └── game_objects.py
-    │   ├── table_env.py
-    │   ├── utils.py
-    │   └── visualize.py
-    ├── models/
-    │   └── ... (you could store model classes here or external to this repo)
-    ├── trained_models/
-    │   └── ... (store trained models here for loading + human-in-the-loop play)
-    ├── test/
-    │   ├── test_joystick.py : check if joystick(s) are working
-    │   └── test_gym_table.py : check if env is working
-    ├── scripts/
-    │   ├── data_playback.py : render a saved trajectory with pygame
-    │   ├── play.py : collect demonstrations with two humans
-    │   └── test_model.py : load a model in two modes: 1) one-player (human) w/ robot, 2) robot-robot only
-    ├── requirements.txt
-    └── setup.py
+        ├── __init__.py
+        ├── game_objects/
+        │   ├── images/
+        │   │   └── ... (images for the game)
+        │   └── game_objects.py
+        ├── table_env.py
+        └── utils.py
+```
+
+To test if your local install works, run the following test scripts:
+
+```    
+└── test/
+    ├── test_joystick.py : check if joystick(s) are working if using joystick control
+    └── test_gym_table.py : check if env is working
+```
+
+There are several things you can do with this environment, by running any of the following scripts:
+
+```
+└── scripts/
+    ├── data_playback.py : render a saved trajectory with pygame
+    ├── play.py : collect demonstrations with two humans (**interactive**)
+    ├── test_model.py : load a model in two modes: 1) (**interactive**) one-player (human) w/ robot, 2) robot-robot only
+    └── visualize.py : plot a saved trajectory and save as image  
 ```
     
 ## TODO:
