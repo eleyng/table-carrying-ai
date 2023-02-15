@@ -1,6 +1,6 @@
-# Table Carrying (╯°□°）╯┬─┬ノ( ◕◡◕ ノ)
+# Table Carrying
 
-An environment for table-carrying, a *joint-action* cooperative task.
+An environment for table-carrying, a *joint-action* cooperative task. (╯°□°）╯┬─┬ノ( ◕◡◕ ノ)
 
 *[TODO]: Insert gif*
 
@@ -15,8 +15,8 @@ The main branch environment is used in the 2023 paper *[It Takes Two: Learning t
 ## Installation
 
 We recommend using any environment manager to keep your dependencies clean. For conda:
-1. Create a conda env: 
-  `conda create --name table python=3.8`
+1. Create a conda env:   
+  `conda create --name table python=3.8`  
   `conda activate table-carrying`
 2. Clone this repo using `git clone git@github.com:eley-ng/table-carrying-ai.git`.
 3. Install the dependencies using `pip install -r requirements.txt --use-deprecated=legacy-resolver`.
