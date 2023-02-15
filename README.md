@@ -17,45 +17,53 @@ The main branch environment is used in the 2023 paper *[It Takes Two: Learning t
 We recommend using any environment manager to keep your dependencies clean. For conda:
 1. Create a conda env: 
   `conda create --name table python=3.8`
-  `conda activate table`
+  `conda activate table-carrying`
 2. Clone this repo using `git clone git@github.com:eley-ng/table-carrying-ai.git`.
 3. Install the dependencies using `pip install -r requirements.txt --use-deprecated=legacy-resolver`.
 4. `cd ../; pip install -e .` to install.
 5. Test that the install worked by running: `python scripts/cooperative-transport/cooperative_transport/gym_table/test/test.py`.
 
-## Code Structure Overview
+## Custom Env Structure Overview
 
 `table-carrying-ai` contains:
 
-`cooperative-transport/`:
-- `gym-table/`: houses gym env
-  - `config/` : stores config files to pre-load map configs. Specify potential obstacle locations, goal locations, and initial table pose
-  - `envs/` : main env code
-    - `table_env.py` : pygame / gym class
-    - `utils.py` : stores necessary table parameters and optional methods for table env, such as keyboard mapping if using discrete actions
-  - `test/` : houses scripts for interacting with env
-    - `test_joystick.py` : checks if joysticks are configured correctly
-    - `play.py` : run this to collect human-human demos
-
 ```
-└── cooperative-transport
-    ├── config
-    │   ├── maps
+└── cooperative-transport/
+    ├── config/
+    │   ├── maps/
     │   │   ├── rnd_obstacle_v2.yml
-    │   │   └── ... (custom map configurations specified here)
+    │   │   └── ... (custom map configs specified here: potential obstacle locations, goal locations, and initial table pose which the env will sample from)
     │   ├── game_objects_params.yml : specify physics parameters and video rendering parameters
     │   └── inference_params.yml
-    ├── envs
+    ├── envs/
     │   ├── __init__.py
-    │   ├── game_objects
-    │   │   ├── images
+    │   ├── game_objects/
+    │   │   ├── images/
     │   │   │   └── ... (images for the game)
-    │   │   └── game_objects.py 
+    │   │   └── game_objects.py
+    │   ├── table_env.py
+    │   ├── utils.py
+    │   └── visualize.py
+    ├── models/
+    │   └── ... (you could store model classes here or external to this repo)
+    ├── trained_models/
+    │   └── ... (store trained models here for loading + human-in-the-loop play)
+    ├── test/
+    │   ├── test_joystick.py : check if joystick(s) are working
+    │   └── test_gym_table.py : check if env is working
+    ├── scripts/
+    │   ├── data_playback.py : render a saved trajectory with pygame
+    │   ├── play.py : collect demonstrations with two humans
+    │   └── test_model.py : load a model in two modes: 1) one-player (human) w/ robot, 2) robot-robot only
+    ├── requirements.txt
+    └── setup.py
 ```
-
     
 ## TODO:
 - add gif
-
-    
+- add trained models
+- add model class example
+- add tests 
+- add scripts
+- test download instructions   
 
