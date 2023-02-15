@@ -1,8 +1,11 @@
-# Table Carrying
+# Table Carrying Simulator
 
-An environment for table-carrying, a *joint-action* cooperative task. (╯°□°）╯┬─┬ノ( ◕◡◕ ノ)
+A custom gym environment for table-carrying, a *joint-action* cooperative task. (╯°□°）╯┬─┬ノ( ◕◡◕ ノ)
 
-*[TODO]: Insert gif*
+<p align="center">
+  <img src="./media/table-carrying-ai.gif" width="75%"> 
+  <i>Map configurations customizable.</i>
+</p>
 
 ## About
 
@@ -11,17 +14,31 @@ This is a continuous state-action custom environment for a two-agent cooperative
 The objective is to carry the table from start to goal while avoiding obstacles. Each agent is physically constrained to the table while moving it. Rewards can be customized to achieve task success (reaching goal without hitting obstacles), but also other cooperative objectives (minimal interaction forces, etc. for *fluency*).
 
 The main branch environment is used in the 2023 paper *[It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying](https://arxiv.org/abs/2209.12890)*. 
+Link to [video](https://www.youtube.com/watch?v=CqWh-yWOgeA).
 
 ## Installation
 
-We recommend using any environment manager to keep your dependencies clean. For conda:
-1. Create a conda env:   
-  `conda create --name table python=3.8`  
-  `conda activate table-carrying`
-2. Clone this repo using `git clone git@github.com:eley-ng/table-carrying-ai.git`.
-3. Install the dependencies using `pip install -r requirements.txt --use-deprecated=legacy-resolver`.
-4. `cd ../; pip install -e .` to install.
-5. Test that the install worked by running: `python scripts/cooperative-transport/cooperative_transport/gym_table/test/test.py`.
+We recommend using any environment manager to keep your dependencies clean. Example conda configuration:
+```
+conda create --name table python=3.8
+conda activate table-carrying
+git clone git@github.com:eley-ng/table-carrying-ai.git
+cd table-carrying-ai
+pip install -r requirements.txt --use-deprecated=legacy-resolver
+pip install -e .
+```
+
+To test your install,
+```
+python tests/test_gym_table.py
+```
+
+### Note on interfaces:
+For interaction, you can choose keyboard (discrete actions) or joystick (continuous actions) modes. For joystick interface, any USB peripheral with stick control (e.g. PS5 controller) works. You can test the controller is recognized by pygame using the following script:
+
+```
+python tests/test_joystick.py
+```
 
 ## Custom Env Structure Overview
 
@@ -48,7 +65,7 @@ The core custom environment code is under `cooperative-transport`, which contain
 To test if your local install works, run the following test scripts:
 
 ```    
-└── test/
+└── tests/
     ├── test_joystick.py : check if joystick(s) are working if using joystick control
     └── test_gym_table.py : check if env is working
 ```
