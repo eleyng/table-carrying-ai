@@ -20,6 +20,9 @@ VERBOSE = False  # Set to True to print debug info
 def play(env, zoom=None, keys_to_action=None):
     """Allows two people to play the game using keyboard or joysticks.
 
+    Player 1 is the BLUE TRIANGLE.
+    Player 2 is the ORANGE CIRCLE.
+
     To play the game use:
 
         python -m cooperative_transport.gym_table.scripts.play --control [keyboard|joystick] ...
@@ -77,16 +80,19 @@ def play(env, zoom=None, keys_to_action=None):
                     action = keys_to_action.get(tuple(sorted(pressed_keys)), 0)
                 elif env.control_type == "joystick":
                     p1_id = 0  # player 1 is blue
-                    p2_id = 1
+                    p2_id = 1  # player 2 is orange
 
+                    assert len(joysticks) == 2, "Demonstration collection in joystick control requires 2 joysticks."
+                    
                     action = np.array(
-                        [
-                            joysticks[p1_id].get_axis(0),
-                            joysticks[p1_id].get_axis(1),
-                            joysticks[p2_id].get_axis(0),
-                            joysticks[p2_id].get_axis(1),
-                        ]
-                    )
+                            [
+                                joysticks[p1_id].get_axis(0),
+                                joysticks[p1_id].get_axis(1),
+                                joysticks[p2_id].get_axis(0),
+                                joysticks[p2_id].get_axis(1),
+                            ]
+                        )
+    
                 debug_print("Action: ", action)
 
                 obs, rew, env_done, info = env.step(action)
@@ -132,7 +138,7 @@ def main():
         "--obs",
         type=str,
         default="discrete",
-        help="Define Observation Space, discrete/rgb",
+        help="Define Observation Space, discrete/rgb (rgb still testing)",
     )
     parser.add_argument(
         "--control",
@@ -147,15 +153,15 @@ def main():
         help="Map Config File Path",
     )
     parser.add_argument(
-        "--strategy",
+        "--run_name",
         type=str,
-        default="success_1",
-        help="strategy name for data collection. creates a folder with this name.",
+        default="random_run_name",
+        help="run_name name for data collection. creates a folder with this name in the repo's base directory to store data.",
     )
     parser.add_argument(
         "--ep",
         type=int,
-        default=207,
+        default=0,
         help="episode number of trajectory data.",
     )
     args = parser.parse_args()
@@ -165,10 +171,10 @@ def main():
         control=args.control,
         map_config=args.map_config,
         run_mode="demo",
-        strategy_name=args.strategy,
+        run_name=args.run_name,
         ep=args.ep,
         dt=CONST_DT,
-        physics_control_type="force",
+        render_mode="gui",
     )
 
     play(env, zoom=1)

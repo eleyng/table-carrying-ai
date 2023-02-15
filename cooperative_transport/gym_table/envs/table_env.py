@@ -75,27 +75,29 @@ class TableEnv(gym.Env):
         self.screen = pygame.display.set_mode(([WINDOW_W, WINDOW_H]))
         self.viewer = None
 
-    def init_data_paths(self, map_config, run_mode, strategy_name):
+    def init_data_paths(self, map_config, run_mode, run_name):
         map_name = map_config.split("/")[-1].split(".")[0]
-        if not exists(os.path.join(os.path.dirname(__file__), run_mode)):
+        root_dir = os.path.join(os.path.dirname(__file__), "../../../")
+        print("root_dir", root_dir)
+        if not exists(os.path.join(root_dir, run_mode)):
             debug_print("Making base directories.")
-            mkdir(os.path.join(os.path.dirname(__file__), run_mode))
-        if not exists(os.path.join(os.path.dirname(__file__), run_mode, map_name)):
-            mkdir(os.path.join(os.path.dirname(__file__), run_mode, map_name))
+            mkdir(os.path.join(root_dir, run_mode))
+        if not exists(os.path.join(root_dir, run_mode, map_name)):
+            mkdir(os.path.join(root_dir, run_mode, map_name))
         self.base_dirname = os.path.join(
-            os.path.dirname(__file__), run_mode, map_name, strategy_name
+            root_dir, run_mode, map_name, run_name
         )
         self.dirname = os.path.join(
-            os.path.dirname(__file__), run_mode, map_name, strategy_name, "trajectories"
+            root_dir, run_mode, map_name, run_name, "trajectories"
         )  # "runs/two-player-bc") #"../results/one-player-bc")
         self.dirname_fluency = os.path.join(
-            os.path.dirname(__file__), run_mode, map_name, strategy_name, "fluency"
+            root_dir, run_mode, map_name, run_name, "fluency"
         )  # "runs/two-player-bc") #"../results/one-player-bc")
         self.dirname_vis = os.path.join(
-            os.path.dirname(__file__), run_mode, map_name, strategy_name, "figures"
+            root_dir, run_mode, map_name, run_name, "figures"
         )  # "runs/two-player-bc") #"../results/one-player-bc")
         self.map_config_dir = os.path.join(
-            os.path.dirname(__file__), run_mode, map_name, strategy_name, "map_cfg"
+            root_dir, run_mode, map_name, run_name, "map_cfg"
         )  # "runs/two-player-bc") #"../results/one-player-bc")
         if not exists(self.base_dirname):
             mkdir(self.base_dirname)
@@ -339,17 +341,36 @@ class TableEnv(gym.Env):
         obs="discrete",
         control="joystick",
         map_config="cooperative_transport/gym_table/config/maps/rnd_obstacle_v2.yml",
-        load_map=None,  # npz file storing map configuration form playback
-        run_mode="demo",  # "demo", "eval"; for demo data collection or experiments
-        strategy_name="success_1",
+        load_map=None,  
+        run_mode="demo",  
+        run_name="random",  
         ep=0,
         dt=1 / 30,
-        physics_control_type="force",
         state_dim=9,
         max_num_obstacles=3,
         max_num_env_steps=1000,
-        set_obs=None,
     ) -> None:
+        """
+        Initialize the environment.
+
+        Args: 
+            render_mode:        (str) "gui" or "headless". 
+                                Set to "headless" for RL training without display, "gui" for data collection. 
+            obs:                (str) "discrete" or "rgb". Set to "discrete" for explicit state representation, 
+                                (str) "rgb" for image-based state representation (WARNING: not tested).
+            control:            (str) "joystick" or "keyboard" for joystick or keyboard control.
+            map_config:         (str) path to map configuration file in cooperative_transport/gym_table/config/maps.
+                                Should be a yaml file that lists potential obstacles and their configurations.
+            load_map:           (str) path to map configuration file for loading map configuration from a specific run.
+            run_mode:           (str) "demo" or "eval". Set to "demo" for data collection,
+                                "eval" for evaluation (loading map configuration from a specific run)
+            run_name:           (str) set the custom name of the run
+            ep:                 (int) episode number. Set to custom value if desired (for dataset collection).
+            dt:                 (float) time step
+            state_dim:          (int) dimension of state
+            max_num_obstacles:  (int) maximum number of obstacles
+            max_num_env_steps:  (int) maximum number of environment steps
+        """
         self.max_num_env_steps = max_num_env_steps
         self.state_dim = state_dim
         self.render_mode = render_mode
@@ -393,7 +414,6 @@ class TableEnv(gym.Env):
         self.map_cfg = None
         self.obs_type = None
         self.dirname = None
-        self.physics_control_type = physics_control_type
         self.obs_space_dim = None
         self.observation_space = None
         self.obs_space_range = None
@@ -410,7 +430,7 @@ class TableEnv(gym.Env):
 
         self.data = []
         # synthetic data
-        self.init_data_paths(map_config, run_mode, strategy_name)
+        self.init_data_paths(map_config, run_mode, run_name)
 
         self.cumulative_reward = 0  # episode's cumulative reward
         self.fluency = {
@@ -793,7 +813,6 @@ class TableEnv(gym.Env):
         self.init_env()
 
         self.ep += 1
-        # print("ep:", self.ep)
         self.file_name = os.path.join(self.dirname, "ep_" + str(self.ep) + ".pkl")
         self.config_file_name = os.path.join(
             self.map_config_dir, "config_params-ep_" + str(self.ep) + ".npz"
@@ -807,6 +826,13 @@ class TableEnv(gym.Env):
             os.makedirs(os.path.dirname(self.file_name))
         if not os.path.exists(os.path.dirname(self.config_file_name)):
             os.makedirs(os.path.dirname(self.config_file_name))
+
+        self.dirname_vis_ep = os.path.join(
+            self.dirname_vis, "ep_" + str(self.ep) + "_images"
+        )
+        if not exists(self.dirname_vis_ep):
+            debug_print("Making image directory: ", self.dirname_vis)
+            mkdir(self.dirname_vis_ep)
 
         self.data = []
 
@@ -904,12 +930,12 @@ class TableEnv(gym.Env):
             If mode is "human", then return nothing and update the viewer.
             If mode is "rgb_array", then return an image as np array to be rendered.
         """
-        img = self.get_image()
+        img4disp = self.get_image()
 
-        img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
-        img = Image.fromarray(img)
-        img = img.resize((WINDOW_W, WINDOW_H))
         if self.n_step % 10 == 0:
+            img = cv.cvtColor(img4disp, cv.COLOR_BGR2RGB)
+            img = Image.fromarray(img)
+            img = img.resize((WINDOW_W, WINDOW_H))
             img.save(os.path.join(self.dirname_vis_ep, str(self.n_step) + ".png"))
 
         if mode == "human":
@@ -918,7 +944,7 @@ class TableEnv(gym.Env):
             #     self.viewer = rendering.SimpleImageViewer()
             #     self.viewer.imshow(img)
         elif mode == "rgb_array":
-            return img
+            return img4disp
         else:
             raise NotImplementedError
 

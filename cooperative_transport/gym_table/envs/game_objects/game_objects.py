@@ -163,9 +163,9 @@ class Table(pygame.sprite.Sprite):
         Parameters
         ----------
         f1 : np.ndarray, shape=(2)
-            Force 1. Note that *player1* is on the right (blue tri / arrow keys if using keyboard).
+            Force 1. Note that *player1* is on the right (blue triangle / arrow keys if using keyboard).
         f2 : np.ndarray, shape=(2)
-            Force 2. Note that *player 2* is on left (orange circ / wasd if using keyboard).
+            Force 2. Note that *player 2* is on left (orange circle / wasd if using keyboard).
 
         Returns
         -------
