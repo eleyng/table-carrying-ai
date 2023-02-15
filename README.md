@@ -1,12 +1,11 @@
 # Table Carrying Simulator
 
-A custom gym environment for table-carrying, a *joint-action* cooperative task. (╯°□°）╯┬─┬ノ( ◕◡◕ ノ)
+A custom gym environment for human-robot table-carrying, a *joint-action* cooperative task. Map configurations customizable.  
 
 <p align="center">
-  <img src="./media/table-carrying-ai.gif" width="75%"> 
-  <i>Map configurations customizable.</i>
-</p>
-
+  <img src="./media/table-carrying-ai.gif" width="50%">
+</p>  
+  
 ## About
 
 This is a continuous state-action custom environment for a two-agent cooperative carrying task. Possible configurations are human-human, human-robot, and robot-robot. 
@@ -79,7 +78,11 @@ There are several things you can do with this environment, by running any of the
     ├── test_model.py : load a model in two modes: 1) (**interactive**) one-player (human) w/ robot, 2) robot-robot only
     └── visualize.py : plot a saved trajectory and save as image  
 ```
-    
+
+
+(╯°□°）╯┬─┬ノ( ◕◡◕ ノ)
+
+
 ## TODO:
 - add gif
 - add trained models
