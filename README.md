@@ -84,10 +84,8 @@ There are several things you can do with this environment, by running any of the
 
 
 ## TODO:
-- add gif
 - add trained models
 - add model class example
-- add tests 
 - add scripts
 - test download instructions   
 
