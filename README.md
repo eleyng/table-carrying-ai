@@ -84,6 +84,16 @@ There are several things you can do with this environment, by running any of the
 ## Dataset and Trained Models
 Download human-human demonstration dataset and trained models, collected for [1]: [Link](https://drive.google.com/drive/folders/1RqmUrl0xPPURRrGFpoC3pgIm-NmgyKV6?usp=share_link). Both folders ("trained_models", "datasets") should be in the base directory.
 
+## Cite
+If you would like to use our environment, please cite us:
+```
+@article{ng2022takes,
+  title={It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying},
+  author={Ng, Eley and Liu, Ziang and Kennedy III, Monroe},
+  journal={arXiv preprint arXiv:2209.12890},
+  year={2022}
+}
+```
 
 ## TODO:
 - add trained models
