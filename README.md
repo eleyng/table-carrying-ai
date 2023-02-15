@@ -13,8 +13,9 @@ This is a continuous state-action custom environment for a two-agent cooperative
 
 The objective is to carry the table from start to goal while avoiding obstacles. Each agent is physically constrained to the table while moving it. Rewards can be customized to achieve task success (reaching goal without hitting obstacles), but also other cooperative objectives (minimal interaction forces, etc. for *fluency*).
 
-The main branch environment is used in the 2023 paper *[It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying](https://arxiv.org/abs/2209.12890)*. 
+The main branch environment is used in the 2023 paper *[It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying](https://arxiv.org/abs/2209.12890)* [1].  
 Link to [video](https://www.youtube.com/watch?v=CqWh-yWOgeA).
+
 
 ## Installation
 
@@ -76,11 +77,12 @@ There are several things you can do with this environment, by running any of the
 └── scripts/
     ├── data_playback.py : render a saved trajectory with pygame
     ├── play.py : collect demonstrations with two humans (**interactive**)
-    ├── test_model.py : load a model in two modes: 1) (**interactive**) one-player (human) w/ robot, 2) robot-robot only
+    ├── test_model.py : can play in: 1) (**interactive**) one-player (human) w/ robot, 2) robot only (**See "Dataset and Trained Models" section**).
     └── visualize.py : plot a saved trajectory and save as image  
 ```
 
-
+## Dataset and Trained Models
+Download human-human demonstration dataset and trained models, collected for [1]: [Link](https://drive.google.com/drive/folders/1RqmUrl0xPPURRrGFpoC3pgIm-NmgyKV6?usp=share_link). Both folders ("trained_models", "datasets") should be in the base directory.
 
 
 ## TODO:
@@ -92,3 +94,5 @@ There are several things you can do with this environment, by running any of the
   - visualize.py
 - test download instructions   
 
+## Contact  
+For issues, comments, suggestions, or anything else, please contact [Eley Ng](https://eleyng.github.io) at eleyng@stanford.edu.
