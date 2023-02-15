@@ -86,6 +86,9 @@ There are several things you can do with this environment, by running any of the
 ## TODO:
 - add trained models
 - add model class example
-- add scripts
+- add scripts  
+  - play.py (completed)
+  - test_model.py
+  - visualize.py
 - test download instructions   
 
