@@ -3,7 +3,7 @@
 A custom gym environment for table-carrying, a *joint-action* cooperative task. (╯°□°）╯┬─┬ノ( ◕◡◕ ノ)
 
 <p align="center">
-  <img src="./media/table-carrying-ai.gif" width="75%"> 
+  <img src="./media/table-carrying-ai.gif" width="50%">  
   <i>Map configurations customizable.</i>
 </p>
 
