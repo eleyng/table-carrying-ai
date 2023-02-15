@@ -3,8 +3,6 @@ import pygame
 import math
 import numpy as np
 
-VERBOSE = False
-
 # game loop parameters
 FPS = 30  # frames per second max limited to this when rendering in game loop
 CONST_DT = 1 / FPS  # constant time step for physics

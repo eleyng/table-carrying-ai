@@ -1,18 +1,19 @@
-# table-env/table_env/envs/table_env.py
 import os
+
+os.environ["SDL_AUDIODRIVER"] = "dsp"  # for training on cluster
 from os import mkdir
-from os.path import dirname, exists, join
+from os.path import exists
+
 import math
 import pickle
 import random
 import time
 from typing import Dict, Tuple, Union, List
-import pdb
-import gym
 import numpy as np
-from numpy.linalg import norm
-import sys, pygame
+
+import gym
 from gym import spaces
+import pygame
 
 # from gym.envs.classic_control import rendering
 from PIL import Image
@@ -27,28 +28,19 @@ from cooperative_transport.gym_table.envs.game_objects.game_objects import (
 
 from cooperative_transport.gym_table.envs.utils import (
     load_cfg,
-    rect_distance,
-    lineseg_dists,
+    FPS,
     BLACK,
-    WHITE,
-    LIGHTBLUE,
-    BLUE,
-    LIGHTORANGE,
-    ORANGE,
-    GREEN,
     WINDOW_W,
     WINDOW_H,
     STATE_W,
     STATE_H,
     rad,
-    VERBOSE,
     debug_print,
     set_action_keyboard,
     set_action_joystick,
 )
 
-
-VERBOSE = False
+VERBOSE = False  # For debugging
 
 
 def debug_print(*args):
@@ -74,17 +66,13 @@ class TableEnv(gym.Env):
 
     def init_pygame(self):
         """Initialize the environment."""
+        if self.render_mode == "headless":
+            os.environ["SDL_VIDEODRIVER"] = "dummy"
+        else:
+            print("Running with display.")
         pygame.init()
-        # ignore screen dimensions for now
-        # if view:
-        print("Running with display.")
         self.screen = pygame.display.set_mode(([WINDOW_W, WINDOW_H]))
         self.viewer = None
-        # else:
-        #     print("Running headless mode.")
-        #     os.environ["SDL_VIDEODRIVER"] = "dummy"
-        #     self.screen = pygame.display.set_mode((1, 1))
-        #     pygame.display.init()
 
     def init_data_paths(self, map_config, run_mode, strategy_name):
         map_name = map_config.split("/")[-1].split(".")[0]
@@ -139,41 +127,13 @@ class TableEnv(gym.Env):
 
         debug_print("Data saved location: ", self.file_name)
 
-    # def reset_table_state(self):
-    #     # used for augmentated data collection, only resets table state
-    #     self.table.x = WINDOW_W * np.random.uniform(
-    #         0.1, 0.3
-    #     )  # self.map_cfg["START"][0] * WINDOW_W
-    #     self.table.y = WINDOW_H * np.random.uniform(0.2, 0.8)  # START"][1] * WINDOW_H
-    #     self.table.angle = np.random.choice(
-    #         [0, np.pi / 2, np.pi, 3 / 2 * np.pi], 1
-    #     )  # np.radians(self.map_cfg["START_ORIENTATION"])
-
-    #     self.table_params = {}
-    #     self.table_params["x"] = self.table.x
-    #     self.table_params["y"] = self.table.y
-    #     self.table_params["angle"] = self.table.angle
-
-    #     self.table.x_speed = 0.0
-    #     self.table.y_speed = 0.0
-    #     self.table.angle_speed = 0.0
-
-    #     self.table.px = 0.25 * WINDOW_W
-    #     self.table.py = 0.25 * WINDOW_H
-    #     self.table.pangle = 0.0
-
     def init_env(self):
         self.init_pygame()
         self.n = 2  # number of players
-        if self.load_map is not None:
-            # print(self.load_map, self.run_mode)
-            # exit(0)
+        # load from saved env config file
+        if self.load_map is not None and self.run_mode == "eval":
             map_run = dict(np.load(self.load_map, allow_pickle=True))
-            # table initial pose
-            # for key in map_run["table"].item():
-            #     table_cfg = map_run["table"].item()[key]
-            #     print(map_run["table"])
-            #     print(table_cfg)
+            # table init pose
             table_cfg = [
                 map_run["table"].item()["x"] / WINDOW_W,
                 map_run["table"].item()["y"] / WINDOW_H,
@@ -187,18 +147,16 @@ class TableEnv(gym.Env):
             # table obstacles as encoding
             obs_lst_cfg = map_run["obstacles"].item()["obs_lst"]
             num_obs_cfg = map_run["obstacles"].item()["num_obstacles"]
-        # RANDOM GOAL CONFIG
-        table_rnd = self.map_cfg["TABLE"][
-            random.sample(range(0, len(self.map_cfg["TABLE"])), 1)[0]
-        ]
-        if self.load_map is not None and self.run_mode == "eval":
-            table_rnd = table_cfg
+        else:
+            # randomly sample new table init position
+            table_cfg = self.map_cfg["TABLE"][
+                random.sample(range(0, len(self.map_cfg["TABLE"])), 1)[0]
+            ]
 
-        debug_print("table_rnd", table_rnd)
         self.table = Table(
-            x=table_rnd[0] * WINDOW_W,
-            y=table_rnd[1] * WINDOW_H,
-            angle=table_rnd[2],
+            x=table_cfg[0] * WINDOW_W,
+            y=table_cfg[1] * WINDOW_H,
+            angle=table_cfg[2],
             physics_control_type=self.physics_control_type,
         )
         self.config_params = {}
@@ -206,32 +164,13 @@ class TableEnv(gym.Env):
         self.table_params["x"] = self.table.x
         self.table_params["y"] = self.table.y
         self.table_params["angle"] = self.table.angle
+        self.table_init = np.array([self.table.x, self.table.y, self.table.angle])
         debug_print("Table initial configuration: ", self.table_params)
-
-        # # RANDOM TABLE INITIAL CONFIGURATION
-        # self.table = Table(
-        #     x=WINDOW_W * np.random.uniform(0.1, 0.2),
-        #     y=WINDOW_H * np.random.uniform(0.2, 0.8),
-        #     angle=np.random.choice([0, np.pi / 2, np.pi, 3 / 2 * np.pi], 1)[0],
-        #     physics_control_type=self.physics_control_type,
-        # )
-        # debug_print(
-        #     WINDOW_H * np.random.uniform(0.2, 0.8),
-        #     np.random.choice([0, np.pi / 2, np.pi, 3 / 2 * np.pi], 1),
-        # )
-
-        # self.config_params = {}
-        # self.table_params = {}
-        # self.table_params["x"] = self.table.x
-        # self.table_params["y"] = self.table.y
-        # self.table_params["angle"] = self.table.angle
-        # debug_print("Table initial configuration: ", self.table_params)
 
         self.player_1 = Agent()
         self.player_2 = Agent()
 
         # RANDOM OBSTACLE CONFIG
-        self.max_num_obstacles = 3
         self.obs_dim = len(self.map_cfg["OBSTACLES"][0]["POSITIONS"])
         self.num_obstacles = np.random.choice(range(1, self.max_num_obstacles + 1), 1)[
             0
@@ -239,11 +178,6 @@ class TableEnv(gym.Env):
         self.visible_obs = 1  # float(args["vis"])
 
         # create obstacle
-        # debug_print(
-        #     "num_obs",
-        #     self.num_obstacles,
-        #     self.map_cfg["OBSTACLES"][0]["POSITIONS"],
-        # )
         self.obs_lst_idx = random.sample(
             range(0, len(self.map_cfg["OBSTACLES"][0]["POSITIONS"])), self.num_obstacles
         )
@@ -251,7 +185,6 @@ class TableEnv(gym.Env):
         if self.load_map is not None and self.run_mode == "eval":
             self.obs_lst_idx = obs_lst_cfg
             self.num_obstacles = num_obs_cfg
-        # debug_print(self.obs_lst_idx)
         self.obs_lst = [
             self.map_cfg["OBSTACLES"][0]["POSITIONS"][i] for i in self.obs_lst_idx
         ]
@@ -294,6 +227,7 @@ class TableEnv(gym.Env):
         debug_print("Goal configuration: ", self.goal_params)
 
         # SAVE CONFIGURATION
+        self.config_params = {}
         self.config_params["table"] = self.table_params
         self.config_params["obstacles"] = self.obs_params
         self.config_params["goal"] = self.goal_params
@@ -343,7 +277,6 @@ class TableEnv(gym.Env):
         if self.control_type == "keyboard":
             # define action space
             self.action_space = spaces.Discrete(25)
-            # debug_print("action space:" , np.shape(self.action_space), self.action_space)  # DEBUG
         elif self.control_type == "joystick":
             # continuous action space specified by two pairs of joystick axis
             action_space_low = np.array([-1.0, -1.0, -1.0, -1.0])
@@ -357,35 +290,33 @@ class TableEnv(gym.Env):
     def init_observation_space(self):
         # discrete observation space
         if self.obs_type == "discrete":
-            # define observation space: x, y, cth, sth, dist2goal, d2o1,..., d2o_obs-dim (currently obsdim=3)
-            obs_space_low = np.array(
+
+            # define observation space
+            self.obs_space_low = np.array(
                 [
-                    0.0,
-                    0.0,
-                    -1.0,
-                    -1.0,
-                    0.0,
-                    0.0,
-                    0.0,
-                    0.0,
+                    0.0,  # x
+                    0.0,  # y
+                    -1.0,  # angle (cos(angle))
+                    -1.0,  # angle (sin(angle))
+                    0.0,  # target x
+                    0.0,  # target y
+                    0.0,  # x position of most relevant obstacle
+                    0.0,  # y position of most relevant obstacle
+                    -2 * np.pi,  # angle (without angle transform)
                 ]
             )
-            obs_space_hi = np.array(
+            self.obs_space_hi = np.array(
                 [
                     WINDOW_W,
                     WINDOW_H,
                     1.0,
                     1.0,
-                    np.sqrt(WINDOW_W**2 + WINDOW_H**2),
-                    np.sqrt(WINDOW_W**2 + WINDOW_H**2),
-                    np.sqrt(WINDOW_W**2 + WINDOW_H**2),
-                    np.sqrt(WINDOW_W**2 + WINDOW_H**2),
+                    WINDOW_W,
+                    WINDOW_H,
+                    WINDOW_W,
+                    WINDOW_H,
+                    2 * np.pi,
                 ]
-            )
-            # self.obs_space_dim = obs_space_hi.shape[0]
-
-            self.observation_space = spaces.Box(
-                obs_space_low, obs_space_hi, dtype=np.float32
             )
 
         elif self.obs_type == "rgb":
@@ -397,18 +328,31 @@ class TableEnv(gym.Env):
                 "Unknown observation space type: %s" % self.obs_type
             )
 
+        self.observation_space = spaces.Box(
+            self.obs_space_low, self.obs_space_hi, dtype=np.float32
+        )
+
+        self.observation_dim = self.observation_space.shape[0]
+        self.obs_space_range = self.obs_space_hi - self.obs_space_low
+
     def __init__(
         self,
+        render_mode="gui",
         obs="discrete",
-        control="keyboard",
-        map_config="rnd_obstacle.yml",
+        control="joystick",
+        map_config="cooperative_transport/gym_table/config/maps/rnd_obstacle_v2.yml",
         load_map=None,  # npz file storing map configuration form playback
         run_mode="demo",  # "demo", "eval"; for demo data collection or experiments
         strategy_name="success_1",
         ep=0,
-        dt=None,
+        dt=1 / 30,
         physics_control_type="force",
+        state_dim=9,
+        max_num_obstacles=3,
+        set_obs=None,
     ) -> None:
+        self.state_dim = state_dim
+        self.render_mode = render_mode
         self.dist2wall_list = None
         self.dist2wall = None
         self.avoid = None
@@ -432,7 +376,7 @@ class TableEnv(gym.Env):
         self.obstacles = None
         self.visible_obs = None
         self.num_obstacles = None
-        self.max_num_obstacles = None
+        self.max_num_obstacles = max_num_obstacles
         self.player_2 = None
         self.player_1 = None
         self.table = None
@@ -452,9 +396,15 @@ class TableEnv(gym.Env):
         self.dirname = None
         self.physics_control_type = physics_control_type
         self.obs_space_dim = None
+        self.observation_space = None
+        self.obs_space_range = None
+        self.obs_space_low = None
+        self.obs_space_hi = None
         self.prediction = None
         self.ground_truth_states = None
         self.past_states = None
+        self.completed_traj = None
+        self.completed_traj_fluency = None
 
         self.init_pygame()
         self.handle_kwargs(obs, control, map_config, ep)
@@ -476,9 +426,9 @@ class TableEnv(gym.Env):
 
         self.load_map = load_map
         self.run_mode = run_mode
-        self.init_env()
         self.init_action_space()
         self.init_observation_space()
+        self.init_env()
 
     def _set_action(self, action):
         if self.control_type == "keyboard":
@@ -526,31 +476,6 @@ class TableEnv(gym.Env):
         self.table.x_speed = vx
         self.table.y_speed = vy
         self.table.angle_speed = angle_speed
-        # debug_print('UPDATES: ', f1, f2, x, y, angle, vx, vy, angle_speed)
-        # debug_print("Player 1: ", self.player_1.f, "unscaled: ", action[:2])
-        # debug_print("Player 2: ", self.player_2.f, "unscaled: ", action[2:])
-
-        # metric updates are performed in compute_reward
-
-        # DEBUG
-        # debug_print(
-        #     "step",
-        #     self.n_step,
-        #     "f1",
-        #     f1,
-        #     "f2",
-        #     f2,
-        #     "x",
-        #     x,
-        #     "y",
-        #     y,
-        #     "action",
-        #     action,
-        #     "dist2goal",
-        #     self.dist2goal,
-        #     "dist2obs",
-        #     self.dist2obs
-        # )
 
         info = {}
 
@@ -560,12 +485,8 @@ class TableEnv(gym.Env):
 
         self.update_metrics(table_state)
         self.observation = self.get_state()
-
-        done = self.check_collision()
-        self.done = done
-
+        self.done = self.check_collision()
         self.compute_fluency(action)
-
         reward = self.compute_reward(table_state)
         # reward = 0.0
         self.cumulative_reward += reward
@@ -602,50 +523,12 @@ class TableEnv(gym.Env):
 
         # dump data upon episode complete
         if self.done:
-            """self.data['observations'] = np.concatenate(self.data['observations'], axis=0)
-            self.data['actions'] = np.concatenate(self.data['actions'], axis=0)
-            self.data['rewards'] = np.concatenate(self.data['rewards'], axis=0)
-            self.data['terminal'] = np.concatenate(self.data['terminal'], axis=0)
-            np.savez(self.file_name, **self.data)"""
-
             np.savez(self.file_name_fluency, **self.fluency)
             np.savez(self.config_file_name, **self.config_params)
             pickle.dump(self.data, open(self.file_name, "wb"))
             debug_print("Data saved!")
         else:
             self.redraw()
-
-        """
-        self.data['observations'].append(
-                np.expand_dims(
-                np.asarray([
-                self.table.x, self.table.y, self.table.angle,
-                self.table.x_speed, self.table.y_speed, self.table.angle_speed
-                ], dtype=np.float32), 
-                axis=0)
-                )               
-        self.data['actions'].append(
-                np.expand_dims(
-                np.asarray([
-                self.player_1.f, self.player_2.f
-                ], dtype=np.float32),
-                axis=0)
-                )
-        self.data['rewards'].append(
-                np.expand_dims(
-                np.asarray([
-                reward],
-                dtype=np.float32),
-                axis=0)
-                )
-        self.data['terminal'].append(
-                np.expand_dims(
-                np.asarray([
-                self.done],
-                dtype=np.float32),
-                axis=0)
-                )
-        """
 
         return self.observation, reward, self.done, info
 
@@ -665,17 +548,13 @@ class TableEnv(gym.Env):
         )
 
     def compute_fluency_cont(self, action) -> float:
-        # Interactive forces: rotate forces to ego frame, project onto line of action, then get the difference; doesnt have to be within [-1,1]
-        f1_ego_x = np.dot(
-            self.tf_w2ego(self.player_1.f),
-            np.array([np.cos(self.table.angle), np.sin(self.table.angle)]),
+        # Interaction forces calculated from:
+        # Kumar, et. al. "Force Distribution in Closed Kinematic Chains", IEEE Journal of Robotics and Automation, 1988.)
+        # Interaction forces = (F_1 - F_2) dot (r_1 - r_2)
+
+        self.inter_f = (self.player_1.f - self.player_2.f) @ (
+            self.table.table_center_to_player1 - self.table.table_center_to_player2
         )
-        f2_ego_x = np.dot(
-            self.tf_w2ego(self.player_2.f),
-            np.array([np.cos(self.table.angle), np.sin(self.table.angle)]),
-        )
-        self.inter_f = np.abs(f1_ego_x - f2_ego_x)
-        # print("inter_f", self.inter_f)
         self.fluency["inter_f"].append(self.inter_f)
         # Human Idle: if all actions are 0, then it is idle
         if not np.any(self.player_2.f):
@@ -722,21 +601,7 @@ class TableEnv(gym.Env):
 
     def update_metrics(self, states):
         # dist2goal
-        # self.dist2goal = np.linalg.norm(
-        #     states[:, :2] - np.array([self.target.x, self.target.y]), axis=1
-        # )
         self.dist2goal = np.linalg.norm(states[:, :2] - self.goal, axis=1)
-
-        # dist2obs
-        # self.dist2obs = []
-        # for i in range(self.num_obstacles):
-        #     self.dist2obs.append(
-        #         np.linalg.norm(
-        #             states[:, :2]
-        #             - np.array([self.obs_sprite[i].x, self.obs_sprite[i].y]),
-        #             axis=1,
-        #         )
-        #     )
         self.dist2obs = np.asarray(
             [
                 np.linalg.norm(
@@ -858,14 +723,27 @@ class TableEnv(gym.Env):
             if not self.screen.get_rect().contains(self.table):
                 debug_print("HIT WALL")
                 return True
-            return False  # , 0
+            elif self.table.rect.left < 0:
+                debug_print("HIT LEFT WALL")
+                return True
+            elif self.table.rect.right > WINDOW_W:
+                debug_print("HIT RIGHT WALL")
+                return True
+            elif self.table.rect.top < 0:
+                debug_print("HIT TOP WALL")
+                return True
+            elif self.table.rect.bottom > WINDOW_H:
+                debug_print("HIT BOTTOM WALL")
+                return True
+            else:
+                return False  # , 0
 
     def reset(self) -> np.ndarray:
         """Reset the environment.
 
         Returns
         -------
-        observation : np.ndarray, shape=(7 + num_obs)
+        observation : np.ndarray, shape=(state_dim,)
             Observation. TODO: make this not return actions and dist2stuff.
         """
 
@@ -900,7 +778,7 @@ class TableEnv(gym.Env):
 
         self.data = []
 
-        return self.observation
+        return self.get_state()
 
     def mp_check_collision(self, state) -> bool:
         """Check for collisions.
@@ -934,11 +812,20 @@ class TableEnv(gym.Env):
                 return True
         return False
 
+    @staticmethod
+    def standardize(self, ins, mean, std):
+        s = np.divide(np.subtract(ins, mean), std)
+        return s
+
+    @staticmethod
+    def unstandardize(self, ins, mean, std):
+        us = np.multiply(ins, std).add(mean)
+        return us
+
     def update_prediction(self, pred):
         self.prediction = pred
 
     def draw_gt(self, gt):
-        # print("gt:", gt.shape, gt)
         self.ground_truth_states = gt
 
     def draw_past_states(self, past_states):
@@ -968,10 +855,7 @@ class TableEnv(gym.Env):
                 pygame.draw.circle(
                     self.screen, (255, 255, 0, 0.5), self.past_states[p][:2], 2
                 )
-        # pygame.draw.rect(self.screen, (255, 0, 0), self.table.rect, 1)
-        # for i in range(self.num_obstacles):
-        # pygame.draw.rect(self.screen, (0, 255, 0), self.obs_sprite[i].rect, 1)
-        # pygame.draw.rect(self.screen, (0, 0, 255), self.target.rect, 1)
+
         pygame.display.update()
 
     def render(self, mode: str = "human") -> Union[np.ndarray, None]:
@@ -993,7 +877,8 @@ class TableEnv(gym.Env):
         img = cv.cvtColor(img, cv.COLOR_BGR2RGB)
         img = Image.fromarray(img)
         img = img.resize((WINDOW_W, WINDOW_H))
-        img.save(os.path.join(self.dirname_vis_ep, str(self.n_step) + ".png"))
+        if self.n_step % 10 == 0:
+            img.save(os.path.join(self.dirname_vis_ep, str(self.n_step) + ".png"))
 
         if mode == "human":
             pass
@@ -1001,9 +886,6 @@ class TableEnv(gym.Env):
             #     self.viewer = rendering.SimpleImageViewer()
             #     self.viewer.imshow(img)
         elif mode == "rgb_array":
-            # save image without resizing
-            # img.save(os.path.join(self.dirname_vis_ep, str(self.n_step) + ".png"))
-            # debug_print("img", img)
             return img
         else:
             raise NotImplementedError
@@ -1029,79 +911,6 @@ class TableEnv(gym.Env):
         )
         return img
 
-    def _get_discrete_state(self) -> np.ndarray:
-        """Gets the player state.
-
-        Returns
-        -------
-        state : np.ndarray, shape=(7 + num_obs)
-            The state.
-        """
-        # previous observation
-        # state = np.array(
-        #     [
-        #         self.table.x,
-        #         self.table.y,
-        #         self.table.angle,
-        #         self.table.x_speed,
-        #         self.table.y_speed,
-        #         self.table.angle_speed,
-        #         self.dist2goal[0],
-        #     ]
-        # )
-        # # print("vec dist2obs", self.dist2obs)
-        # # print("vec dist2wall", self.dist2wall)
-        # nearest_obs = np.vstack([self.dist2obs, self.dist2wall]).T
-        # # print("vec nearest_obs", nearest_obs)
-        # state = np.append(state, np.min(nearest_obs, axis=1, keepdims=True)[0], axis=0)
-        # # print("returned state", state.shape, state)
-
-        # new observation
-        # print("obs debug")
-        # print(self.dist2obs.shape, self.dist2obs[0])
-        state = np.zeros(shape=(9), dtype=np.float32)
-        state[0] = self.table.x
-        state[1] = self.table.y
-        state[2] = np.cos(self.table.angle)  # self.table.angle  #
-        state[3] = np.sin(self.table.angle)  # self.target.x  #
-        state[4] = self.target.x
-        state[5] = self.target.y  # self.dist2goal
-        dist2obs = np.linalg.norm(self.avoid, axis=1)
-        most_relevant_obs_idx = np.argmin(dist2obs)
-        most_relevant_obs = self.obstacles[most_relevant_obs_idx]
-        state[6] = most_relevant_obs[0]
-        state[7] = most_relevant_obs[1]
-        state[8] = self.table.angle
-        # state[6] = self.obstacles[0, 0] - self.table.x
-        # state[7] = self.obstacles[0, 1] - self.table.y
-        # state[8] = self.obstacles[1, 0] - self.table.x
-        # state[9] = self.obstacles[1, 1] - self.table.y
-        # state[10] = self.obstacles[2, 0] - self.table.x
-        # state[11] = self.obstacles[2, 1] - self.table.y
-        # state[6:] = state[6:] / 10
-
-        # state[5 : 5 + self.num_obstacles] = np.asarray(
-        #     [i for i in self.dist2obs], dtype=np.float32
-        # ).flatten()
-        # print("state obs", state)
-        # if self.max_num_obstacles - self.num_obstacles > 0:
-        #     state[5 + self.num_obstacles :] = np.repeat(
-        #         self.dist2obs[-1], (self.max_num_obstacles - self.num_obstacles)
-        #     )
-        #     print("state obs rem", state)
-
-        # print("dist2obs", self.dist2obs)
-        # print("self num obs", self.num_obstacles, "max", self.max_num_obstacles)
-        #         self.table.y,
-        #         np.cos(self.table.angle),
-        #         np.sin(self.table.angle),
-        #     ]
-        # )
-
-        # print("STATEEEEE", state)
-
-        return state
-
     def _get_rgb_state(self):
         """Gets the player state.
 
@@ -1121,61 +930,26 @@ class TableEnv(gym.Env):
         elif self.obs_type == "rgb":
             return self._get_rgb_state()
 
-    @staticmethod
-    def standardize(self, ins, mean, std):
-        s = np.divide(np.subtract(ins, mean), std)
-        return s
+    def _get_discrete_state(self) -> np.ndarray:
+        """Gets the player state.
 
-    @staticmethod
-    def unstandardize(self, ins, mean, std):
-        us = np.multiply(ins, std).add(mean)
-        return us
-
-    def net_display(
-        self,
-        screen: pygame.Surface,
-        lcolor: pygame.Color,
-        tricolor: pygame.Color,
-        thickness: int = 3,
-        trirad: int = 8,
-    ) -> None:
-        """Displays the player"s force vector on top of table sprite.
-
-        screen : pygame.Surface
-            The current display.
-        lcolor: pygame.Color
-            The vector line color.
-        tricolor: pygame.Color
-            The vector head color.
-        thickness : int, default=3
-            The vector line thickness.
-        trirad : int, default=8
-            The circumscribed radius of the vector head.
+        Returns
+        -------
+        state : np.ndarray, shape=(state_dim, )
+            The state.
         """
-        start = [self.player.x, self.player.y]
-        fx = (
-            self.player_1.f[0] + self.player_2.f[0]
-        ) / 3.0  # TODO: make these divisions non-hardcoded
-        fy = (self.player_1.f[1] + self.player_2.f[1]) / 2.0
-        end = np.array([start[0] + fx, start[1] + fy])
+        state = np.zeros(shape=(self.state_dim,), dtype=np.float32)
+        state[0] = self.table.x
+        state[1] = self.table.y
+        state[2] = np.cos(self.table.angle)  # self.table.angle  #
+        state[3] = np.sin(self.table.angle)  # self.target.x  #
+        state[4] = self.target.x
+        state[5] = self.target.y  # self.dist2goal
+        dist2obs = np.linalg.norm(self.avoid, axis=1)
+        most_relevant_obs_idx = np.argmin(dist2obs)
+        most_relevant_obs = self.obstacles[most_relevant_obs_idx]
+        state[6] = most_relevant_obs[0]
+        state[7] = most_relevant_obs[1]
+        state[8] = self.table.angle
 
-        pygame.draw.line(screen, lcolor, start, end, thickness)
-        rotation = (np.arctan2(start[1] - end[1], end[0] - start[0])) + np.pi / 2
-        pygame.draw.polygon(
-            screen,
-            tricolor,
-            (
-                (
-                    end[0] + trirad * np.sin(rotation),
-                    end[1] + trirad * np.cos(rotation),
-                ),
-                (
-                    end[0] + trirad * np.sin(rotation - 120 * rad),
-                    end[1] + trirad * np.cos(rotation - 120 * rad),
-                ),
-                (
-                    end[0] + trirad * np.sin(rotation + 120 * rad),
-                    end[1] + trirad * np.cos(rotation + 120 * rad),
-                ),
-            ),
-        )
+        return state
