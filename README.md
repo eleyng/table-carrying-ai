@@ -4,6 +4,7 @@ A custom gym environment for human-robot table-carrying, a *joint-action* cooper
 
 <p align="center">
   <img src="./media/table-carrying-ai.gif" width="50%">
+  <p align="center">(╯°□°）╯┬─┬ノ( ◕◡◕ ノ)<p align="center">
 </p>  
   
 ## About
@@ -80,7 +81,6 @@ There are several things you can do with this environment, by running any of the
 ```
 
 
-(╯°□°）╯┬─┬ノ( ◕◡◕ ノ)
 
 
 ## TODO:
