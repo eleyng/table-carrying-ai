@@ -2,7 +2,10 @@
 
 A custom gym environment for table-carrying, a *joint-action* cooperative task. (╯°□°）╯┬─┬ノ( ◕◡◕ ノ)
 
-*[TODO]: Insert gif*
+<p align="center">
+  <img src="./media/table-carrying-ai.gif" width="75%"> 
+  <i>Map configurations customizable.</i>
+</p>
 
 ## About
 
