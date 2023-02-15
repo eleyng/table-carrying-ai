@@ -10,6 +10,7 @@ import random
 import time
 from typing import Dict, Tuple, Union, List
 import numpy as np
+import torch
 
 import gym
 from gym import spaces
@@ -157,7 +158,6 @@ class TableEnv(gym.Env):
             x=table_cfg[0] * WINDOW_W,
             y=table_cfg[1] * WINDOW_H,
             angle=table_cfg[2],
-            physics_control_type=self.physics_control_type,
         )
         self.config_params = {}
         self.table_params = {}
@@ -263,14 +263,12 @@ class TableEnv(gym.Env):
             np.array([self.table.x, self.table.y, self.table.angle]), axis=0
         )
         self.update_metrics(table_state)
-        # reward = self.compute_reward(np.array([table_state]))
 
         self.prev_time = time.time()
         self.observation = self.get_state()
         self.n_step = 0
 
         self.cap = self.player_1.cap  # TODO: match force cap in game_objects
-        self.velocity_cap = self.player_1.velocity_cap
 
     def init_action_space(self):
         # ----------------------------------------------- Action and Observation Spaces -------------------------------------------------------------
@@ -349,8 +347,10 @@ class TableEnv(gym.Env):
         physics_control_type="force",
         state_dim=9,
         max_num_obstacles=3,
+        max_num_env_steps=1000,
         set_obs=None,
     ) -> None:
+        self.max_num_env_steps = max_num_env_steps
         self.state_dim = state_dim
         self.render_mode = render_mode
         self.dist2wall_list = None
@@ -359,7 +359,6 @@ class TableEnv(gym.Env):
         self.done = None
         self.delta_t = dt
         self.n = None
-        self.velocity_cap = None
         self.cap = None
         self.n_step = None
         self.observation = None
@@ -413,8 +412,6 @@ class TableEnv(gym.Env):
         # synthetic data
         self.init_data_paths(map_config, run_mode, strategy_name)
 
-        self.interact_mode = True
-
         self.cumulative_reward = 0  # episode's cumulative reward
         self.fluency = {
             "inter_f": [],
@@ -426,6 +423,10 @@ class TableEnv(gym.Env):
 
         self.load_map = load_map
         self.run_mode = run_mode
+        if self.run_mode == "demo":
+            self.vectorized = False
+        else:
+            self.vectorized = True
         self.init_action_space()
         self.init_observation_space()
         self.init_env()
@@ -463,7 +464,8 @@ class TableEnv(gym.Env):
 
         if action is not None:
             f1, f2, x, y, angle, vx, vy, angle_speed = self.table.update(
-                action_for_update, self.delta_t, self.n_step, self.interact_mode
+                action_for_update,
+                self.delta_t,
             )
 
         self.player_1.f = f1  # note: is action scaled by policy scaling factor!
@@ -485,7 +487,7 @@ class TableEnv(gym.Env):
         self.observation = self.get_state()
         self.done = self.check_collision()
         self.compute_fluency(action)
-        reward = self.compute_reward(table_state)
+        reward = self.compute_reward(table_state, vectorized=self.vectorized)
         self.cumulative_reward += reward
         debug_print(
             "Done? ",
@@ -526,7 +528,50 @@ class TableEnv(gym.Env):
         else:
             self.redraw()
 
-        return self.observation, reward, self.done, info
+        # return self.observation, reward, self.done, info
+
+        if self.success:
+            print("success", self.done, self.success, self.n_step, reward, self.inter_f)
+            self.completed_traj = self.data
+            self.completed_traj_fluency = self.fluency
+            states = self.reset()
+            return (
+                states,
+                torch.FloatTensor(np.array([reward,])),
+                torch.FloatTensor(np.array([[True],])),
+                info,
+            )
+        elif self.done:
+            print("done", self.done, self.success, self.n_step, reward, self.inter_f)
+            self.completed_traj = self.data
+            self.completed_traj_fluency = self.fluency
+            states = self.reset()
+            return (
+                states,
+                torch.FloatTensor(np.array([reward,])),
+                torch.FloatTensor(np.array([[float(False)],])),
+                info,
+            )
+        else:
+            if self.n_step >= self.max_num_env_steps:
+                self.done = True
+                print("done", self.done, self.success, self.n_step, reward, self.inter_f) 
+                self.completed_traj = self.data
+                self.completed_traj_fluency = self.fluency
+                states = self.reset()
+                return (
+                    states,
+                    torch.FloatTensor(np.array([reward,])),
+                    torch.FloatTensor(np.array([[float(False)],])),
+                    info,
+                )
+            else:
+                return (
+                    self.get_state(),
+                    torch.FloatTensor(np.array([reward,])),
+                    torch.FloatTensor(np.array([[float(False)],])),
+                    info,
+                )
 
     def compute_fluency(self, action):
         if self.control_type == "keyboard":
@@ -624,7 +669,7 @@ class TableEnv(gym.Env):
 
         self.dist2wall = np.min(self.dist2wall_list, axis=1, keepdims=True)
 
-    def compute_reward(self, states=None) -> float:
+    def compute_reward(self, states=None, vectorized=False) -> float:
         # states should be an N x 3 array
         assert (
             len(states.shape) == 2
@@ -676,7 +721,11 @@ class TableEnv(gym.Env):
 
         reward += r_obs
         print("Total step reward: ", self.n_step, reward)
-        return reward
+
+        if vectorized:
+            return reward
+        else:
+            return reward[0]
 
     def check_collision(self) -> bool:
         """Check for collisions.

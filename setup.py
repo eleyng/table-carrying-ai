@@ -28,5 +28,6 @@ setuptools.setup(
         "stable-baselines3",
         "tensorboard",
         "torch",
+        "opencv-python",
     ],
 )

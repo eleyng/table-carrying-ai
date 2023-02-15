@@ -16,9 +16,8 @@ from cooperative_transport.gym_table.envs.utils import (
     WINDOW_W,
     WINDOW_H,
     debug_print,
+    VERBOSE,
 )
-
-VERBOSE = False  # Set to True to print debug info
 
 
 class Obstacle(pygame.sprite.Sprite):
@@ -88,10 +87,7 @@ class Table(pygame.sprite.Sprite):
     """Table object."""
 
     def __init__(
-        self,
-        x=0.25 * WINDOW_W,
-        y=0.25 * WINDOW_H,
-        angle=0.0,
+        self, x=0.25 * WINDOW_W, y=0.25 * WINDOW_H, angle=0.0, length=L
     ) -> None:
         """Initialize the table.
 
@@ -129,6 +125,19 @@ class Table(pygame.sprite.Sprite):
         data = original_img.tobytes()
         self.original_img = pygame.image.fromstring(data, sz, mode)
         self.w, self.h = self.original_img.get_size()
+        self.length_from_center_to_person = length / 2
+        self.table_center_to_player1 = np.array(
+            [
+                self.x + self.length_from_center_to_person * np.cos(self.angle),
+                self.y + self.length_from_center_to_person * np.sin(self.angle),
+            ]
+        )
+        self.table_center_to_player2 = np.array(
+            [
+                self.x - self.length_from_center_to_person * np.cos(self.angle),
+                self.y - self.length_from_center_to_person * np.sin(self.angle),
+            ]
+        )
         # get a rotated image
         self.image = pygame.transform.rotate(self.original_img, self.angle)
         self.rect = self.image.get_rect(center=(self.x, self.y))
