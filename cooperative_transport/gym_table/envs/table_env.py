@@ -448,8 +448,8 @@ class TableEnv(gym.Env):
 
         Returns
         -------
-        observation : np.ndarray, shape=(6)
-            Observations. We currently observe on the full state + player actions. TODO: change this later.
+        observation : np.ndarray, shape=(self.state_dim, )
+            Observations. See get_state() for details.
         reward : float
             Reward at this step.
         done : bool
@@ -459,17 +459,15 @@ class TableEnv(gym.Env):
         """
         self.n_step += 1
         debug_print("dt in step: ", self.delta_t)
-        action_for_update = self._set_action(
-            action
-        )  # action is [-1, 1]; so is action_for_update
+        action_for_update = self._set_action(action)
 
         if action is not None:
             f1, f2, x, y, angle, vx, vy, angle_speed = self.table.update(
                 action_for_update, self.delta_t, self.n_step, self.interact_mode
             )
 
-        self.player_1.f = f1  # note: is action scaled by factor of 50!
-        self.player_2.f = f2  # note: is action scaled by factor of 50!
+        self.player_1.f = f1  # note: is action scaled by policy scaling factor!
+        self.player_2.f = f2  # note: is action scaled by policy scaling factor!
         self.table.x = x
         self.table.y = y
         self.table.angle = angle
@@ -488,7 +486,6 @@ class TableEnv(gym.Env):
         self.done = self.check_collision()
         self.compute_fluency(action)
         reward = self.compute_reward(table_state)
-        # reward = 0.0
         self.cumulative_reward += reward
         debug_print(
             "Done? ",
@@ -498,6 +495,7 @@ class TableEnv(gym.Env):
             "Cumulative r: ",
             self.cumulative_reward,
         )
+
         # compute reward BEFORE dumping data to make sure terminal reward is recorded
         self.data.append(
             [self.table.x, self.table.y, self.table.angle]  # pos
@@ -506,8 +504,6 @@ class TableEnv(gym.Env):
             + [reward]  # reward
             + [self.done]  # done
             + [self.success]
-            # + ["f1 (RL)", self.player_1.f]
-            # + ["f2", self.player_2.f]
             + [self.n_step]  # step
             + [self.delta_t]  # dt
             + [list(self.goal)]  # goal
@@ -613,7 +609,6 @@ class TableEnv(gym.Env):
             ],
             dtype=np.float32,
         )
-        # print("vec dist2obs", self.dist2obs.shape, self.dist2obs)
 
         self.avoid = np.array(self.obstacles) - np.array([self.table.x, self.table.y])
 
@@ -626,13 +621,9 @@ class TableEnv(gym.Env):
                 WINDOW_H - states[:, 1],
             )
         ).T
-        # print("vec dist2wall!", self.dist2wall_list)
 
-        # self.dist2obs = np.array(self.dist2obs)
         self.dist2wall = np.min(self.dist2wall_list, axis=1, keepdims=True)
-        # print("vec dist2wall!!!", self.dist2wall)
 
-    # TODO: clean up
     def compute_reward(self, states=None) -> float:
         # states should be an N x 3 array
         assert (
@@ -683,10 +674,6 @@ class TableEnv(gym.Env):
             if d.any() < const:
                 r_obs += b * np.power(c, d - const)
 
-        # only consider minimum distance to wall
-        # if self.dist2wall[:, 0] < const:
-        #     r_obs += b * np.power(c, self.dist2wall[:, 0] - const)
-
         reward += r_obs
         print("Total step reward: ", self.n_step, reward)
         return reward
@@ -699,23 +686,19 @@ class TableEnv(gym.Env):
         collided : Boolean
             Whether the table has collided with the obstacles
         """
-        # hit_list = pygame.sprite.spritecollide(self.table, self.done_list, False)
         hit_list = pygame.sprite.spritecollide(
             self.table, self.done_list, False, pygame.sprite.collide_mask
         )
 
         if any(hit_list):
-            # if any(pygame.sprite.spritecollide(self.table, self.target_list, False)):
             if any(
                 pygame.sprite.spritecollide(
                     self.table, [self.target], False, pygame.sprite.collide_mask
                 )
             ):
                 self.success = True
-                # reward = 80.
                 debug_print("HIT TARGET")
             else:
-                # reward = -100.
                 debug_print("HIT OBSTACLE")
             return True  # , reward
         else:
