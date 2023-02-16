@@ -30,6 +30,8 @@ WINDOW_H = 600
 STATE_W = 256
 STATE_H = 256
 rad = np.pi / 180.0
+wallpts = np.array([[0, 0], [0, WINDOW_H], [WINDOW_W, WINDOW_H], [WINDOW_W, 0], [0, 0]])
+
 
 
 def init_joystick():
@@ -71,6 +73,38 @@ def load_cfg(config_file):
             return yaml.safe_load(stream)
         except yaml.YAMLError as exc:
             print(exc)
+
+def consec_repeat_starts(a, n):
+    '''Returns the indices of the first element of each repeat of length n in a
+    
+        Parameters
+        ----------
+        a: 1D array
+        n: int, length of repeat
+
+    '''
+
+    N = n - 1
+    m = a[:-1] == a[1:]
+
+    return np.flatnonzero(np.convolve(m, np.ones(N, dtype=int)) == N) - N + 1
+
+
+def get_idx_repeats_of_len_n(states_xy, n):
+    '''Returns 2D array of the intersection of indices of each repeat of length n
+        in the x and y coordinates of states_xy. 
+    
+        Parameters
+        ----------
+        states_xy: 2D array, shape (n, 2)
+        n: int, length of repeat
+    
+    '''
+    repeats_x = consec_repeat_starts(states_xy[:, 0], n)
+    repeats_y = consec_repeat_starts(states_xy[:, 1], n)
+    repeat_intersect = np.intersect1d(repeats_x, repeats_y)
+
+    return repeat_intersect
 
 
 def lineseg_dists(p, a, b):

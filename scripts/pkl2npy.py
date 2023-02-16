@@ -1,11 +1,13 @@
 import numpy as np
-from numpy.linalg import norm
+from scipy import signal
+from scipy.fftpack import fft, ifft
 import pickle
 from os import listdir, mkdir
 from os.path import join, isfile, isdir
 from cooperative_transport.gym_table.envs.utils import (
     load_cfg,
     get_idx_repeats_of_len_n,
+    FPS,
 )
 
 yaml_filepath = join("configs/dataset_processing_params.yml")
@@ -20,6 +22,7 @@ remove_len_of_n = cfg["remove_len_of_n"]
 skip_frames = cfg["skip_frames"]
 skip_start_idx = cfg["skip_start_idx"]
 skip_freq = cfg["skip_freq"]
+low_pass_filter = cfg["low_pass_filter"]
 
 # Make dataset directories
 if not isdir(npz_data_base):
@@ -155,6 +158,14 @@ for f in traj_files:
         rewards = np.delete(rewards, repeat_intersect, axis=0)
         terminal = np.delete(terminal, repeat_intersect, axis=0)
         conditioning_var = np.delete(conditioning_var, repeat_intersect, axis=0)
+
+    # Option C: Apply low pass filter to actions
+    if low_pass_filter:
+        sos = signal.butter(1, 3, 'low', fs=FPS, output='sos')
+        for i in range(actions.shape[1]):
+            filtered = signal.sosfiltfilt(sos, actions[:, i])
+            filtered = np.clip(filtered, -1, 1)
+            actions[:, i] = filtered
 
     ### Check data for validity ###
     if np.any(actions) < -1.0 or np.any(actions) > 1.0:
