@@ -92,11 +92,11 @@ See file for additional optional args. For each dataset collection session, you 
 - `demos/{map_config_name}/{custom_session_name}/fluency/` : logs the fluency computed for each trajectory, stored in a .npz.
 - `demos/{map_config_name}/{custom_session_name}/figures/` : saves the RGB images for each trajectory.  
 
-The trajectory data is collected as a .pkl, and you can run processing on it to convert to .npz, and other steps like low-pass filters to the actions, skip frames, or removing frames with stopped motion. To run the dataprocessing script, modify `configs/dataset_processing_params.yml`, then run `python scripts/preprocess_data.py`. 
+The trajectory data is collected as a .pkl, and you can run processing on it to convert to .npz, and other steps like low-pass filters to the actions, skip frames, or removing frames with stopped motion. To run the dataprocessing script, modify `configs/dataset_processing_params.yml`, then run `python scripts/process_data.py`. 
 
 ### Downloading Dataset from [1]
 
-Download human-human demonstration dataset and trained models, collected for [1]: [Link](https://drive.google.com/drive/folders/1RqmUrl0xPPURRrGFpoC3pgIm-NmgyKV6?usp=share_link). Both folders ("trained_models", "datasets") should be in the base directory. Note, the data for training the model in [1] has been processed into a different format than the properties set in the data processing script [here](https://github.com/eleyng/table-carrying-ai/blob/main/scripts/preprocess_data.py).
+Download human-human demonstration dataset and trained models, collected for [1]: [Link](https://drive.google.com/drive/folders/1RqmUrl0xPPURRrGFpoC3pgIm-NmgyKV6?usp=share_link). Both folders ("trained_models", "datasets") should be in the base directory. Note, the data for training the model in [1] has been processed into a different format than the properties set in the data processing script [here](https://github.com/eleyng/table-carrying-ai/blob/main/scripts/process_data.py).
 
 ## Running Trained Models with Human-in-the-Loop
 
