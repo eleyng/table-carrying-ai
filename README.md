@@ -1,19 +1,20 @@
 # Table Carrying Simulator
 
-A custom gym environment for human-robot table-carrying, a *joint-action* cooperative task. Map configurations customizable.  
+A custom *continuous state-action* gym environment for human-robot cooperative table-carrying. Map configurations customizable.  
 
 <p align="center">
   <img src="./media/table-carrying-ai.gif" width="50%">
+  <p align="center">(╯°□°）╯┬─┬ノ( ◕◡◕ ノ)<p align="center">
 </p>  
   
 ## About
 
-This is a continuous state-action custom environment for a two-agent cooperative carrying task. Possible configurations are human-human, human-robot, and robot-robot. 
+This is a continuous state-action custom environment for a two-agent cooperative carrying task. Possible configurations are human-human, human-robot, and robot-robot. It is intended to be a benchmark environment for human-robot cooperative physical tasks. Cooperative carrying is also a task suitable for measuring interaction metrics, such as interaction forces (when the two agents are compressing or stretching the table in dissent), or idle time (when one agent stops moving, perhaps as a signal to the other to take over leadership or allow navigation around an obstacle). For cooperative tasks, such metrics are important to capture to determine the quality of interaction. 
 
 The objective is to carry the table from start to goal while avoiding obstacles. Each agent is physically constrained to the table while moving it. Rewards can be customized to achieve task success (reaching goal without hitting obstacles), but also other cooperative objectives (minimal interaction forces, etc. for *fluency*).
 
-The main branch environment is used in the 2023 paper *[It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying](https://arxiv.org/abs/2209.12890)*. 
-Link to [video](https://www.youtube.com/watch?v=CqWh-yWOgeA).
+The main branch environment is used in the 2023 ICRA paper *[It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying](https://arxiv.org/abs/2209.12890)* [1]. Link to [video](https://www.youtube.com/watch?v=CqWh-yWOgeA).
+
 
 ## Installation
 
@@ -75,13 +76,32 @@ There are several things you can do with this environment, by running any of the
 └── scripts/
     ├── data_playback.py : render a saved trajectory with pygame
     ├── play.py : collect demonstrations with two humans (**interactive**)
-    ├── test_model.py : load a model in two modes: 1) (**interactive**) one-player (human) w/ robot, 2) robot-robot only
+    ├── test_model.py : can play in: 1) (**interactive**) one-player (human) w/ robot, 2) robot only (**See "Dataset and Trained Models" section**).
     └── visualize.py : plot a saved trajectory and save as image  
 ```
 
+## Dataset and Trained Models
 
-(╯°□°）╯┬─┬ノ( ◕◡◕ ノ)
+To collect your own dataset with two humans, run:  
+`python scripts/play.py --map_config {path to map config} --run_name {name of session for data collection} ...`  
+See file for additional optional args. For each dataset collection session, you can record as many trajectories with your partner as needed. Several directories will be created to log the collected data:  
+- `demos/{map_config_name}/{custom_session_name}/trajectories/` : each trajectory generates a new pkl in this directory to store the following ([see file for details](https://github.com/eleyng/table-carrying-ai/blob/5e6f22161d730b095f12e81a49e062e67d1aae66/cooperative_transport/gym_table/envs/table_env.py#L522)): table pose, velocity, each agents' actions, reward, done, success, n_step, dt, goal position, obstalce positions, points to describe the walls, cumulative reward  
+- `demos/{map_config_name}/{custom_session_name}/map_cfg/` : since you can sample random configurations of obstacles, initial positions, and goal locations described in the map config (example config [here](https://github.com/eleyng/table-carrying-ai/blob/main/cooperative_transport/gym_table/config/maps/rnd_obstacle_v2.yml), each trajectory generates a .npz in this directory to store the sampled map config for the corresponding run.  
+- `demos/{map_config_name}/{custom_session_name}/fluency/` : logs the fluency computed for each trajectory, stored in a .npz.
+- `demos/{map_config_name}/{custom_session_name}/figures/` : saves the RGB images for each trajectory.  
 
+Download human-human demonstration dataset and trained models, collected for [1]: [Link](https://drive.google.com/drive/folders/1RqmUrl0xPPURRrGFpoC3pgIm-NmgyKV6?usp=share_link). Both folders ("trained_models", "datasets") should be in the base directory. Note, the data has been processed into a different format for training the model in [1]. The processing script is available under `scripts/pkl2npy.py`.
+
+## Cite
+If you would like to use our environment, please cite us:
+```
+@article{ng2022takes,
+  title={It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying},
+  author={Ng, Eley and Liu, Ziang and Kennedy III, Monroe},
+  journal={arXiv preprint arXiv:2209.12890},
+  year={2022}
+}
+```
 
 ## TODO:
 - add trained models
@@ -90,5 +110,8 @@ There are several things you can do with this environment, by running any of the
   - play.py (completed)
   - test_model.py
   - visualize.py
+  - pkl2npy.py
 - test download instructions   
 
+## Contact  
+For issues, comments, suggestions, or anything else, please contact [Eley Ng](https://eleyng.github.io) at eleyng@stanford.edu.
