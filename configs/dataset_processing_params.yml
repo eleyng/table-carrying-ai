@@ -1,0 +1,10 @@
+pkl_data_base: demo
+map_config: rnd_obstacle_v2
+run_name: random_run_name
+npz_data_base: datasets
+keyboard_actions: False
+skip_frames: False
+skip_start_idx: 0
+skip_freq: 3
+remove_stopped_motion: False
+remove_len_of_n: 5
