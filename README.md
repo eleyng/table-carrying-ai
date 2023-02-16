@@ -80,7 +80,9 @@ There are several things you can do with this environment, by running any of the
     └── visualize.py : plot a saved trajectory and save as image  
 ```
 
-## Dataset and Trained Models
+## Dataset Options
+
+### Collecting Your Own Dataset
 
 To collect your own dataset with two humans, run:  
 `python scripts/play.py --map_config {path to map config} --run_name {name of session for data collection} ...`  
@@ -90,7 +92,11 @@ See file for additional optional args. For each dataset collection session, you 
 - `demos/{map_config_name}/{custom_session_name}/fluency/` : logs the fluency computed for each trajectory, stored in a .npz.
 - `demos/{map_config_name}/{custom_session_name}/figures/` : saves the RGB images for each trajectory.  
 
-Download human-human demonstration dataset and trained models, collected for [1]: [Link](https://drive.google.com/drive/folders/1RqmUrl0xPPURRrGFpoC3pgIm-NmgyKV6?usp=share_link). Both folders ("trained_models", "datasets") should be in the base directory. Note, the data has been processed into a different format for training the model in [1]. The processing script is available under `scripts/pkl2npy.py`.
+The trajectory data is collected as a .pkl, and you can run processing on it to convert to .npz, and other steps like low-pass filters to the actions, skip frames, or removing frames with stopped motion. To run the dataprocessing script, modify `configs/dataset_processing_params.yml`, then run `python scripts/pkl2npy.py`. 
+
+### Downloading Dataset from [1]
+
+Download human-human demonstration dataset and trained models, collected for [1]: [Link](https://drive.google.com/drive/folders/1RqmUrl0xPPURRrGFpoC3pgIm-NmgyKV6?usp=share_link). Both folders ("trained_models", "datasets") should be in the base directory. Note, the data for training the model in [1] has been processed into a different format than the properties set in the data processing script [here](https://github.com/eleyng/table-carrying-ai/blob/main/scripts/pkl2npy.py).
 
 ## Cite
 If you would like to use our environment, please cite us:
@@ -110,7 +116,7 @@ If you would like to use our environment, please cite us:
   - play.py (completed)
   - test_model.py
   - visualize.py
-  - pkl2npy.py
+  - pkl2npy.py (completed, added config too)
 - test download instructions   
 
 ## Contact  
