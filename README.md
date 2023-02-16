@@ -1,6 +1,6 @@
 # Table Carrying Simulator
 
-A custom *continuous state-action* gym environment for human-robot cooperative table-carrying. Map configurations customizable.  
+A *continuous state-action* gym environment for human-robot cooperative table-carrying. Map configurations are customizable.  
 
 <p align="center">
   <img src="./media/table-carrying-ai.gif" width="50%">
@@ -97,6 +97,13 @@ The trajectory data is collected as a .pkl, and you can run processing on it to 
 ### Downloading Dataset from [1]
 
 Download human-human demonstration dataset and trained models, collected for [1]: [Link](https://drive.google.com/drive/folders/1RqmUrl0xPPURRrGFpoC3pgIm-NmgyKV6?usp=share_link). Both folders ("trained_models", "datasets") should be in the base directory. Note, the data for training the model in [1] has been processed into a different format than the properties set in the data processing script [here](https://github.com/eleyng/table-carrying-ai/blob/main/scripts/pkl2npy.py).
+
+## Running Trained Models with Human-in-the-Loop
+
+To evaluate your model, you can load it and play with it in real time as human teleoperator. To do so: 
+1. Download trained models or create a dir `trained_models` and upload your model in this format: `trained_models/{name of model}/{name of check point to load}.ckpt`.
+2. Run `python scripts/test_model.py` using various flags (see file for details). You can run the model autonomously, or run with a human in the loop.
+3. Runs will be saved as a .npz file. You can visualize them via `scipts/visualize_trajectory.py`.
 
 ## Cite
 If you would like to use our environment, please cite us:
