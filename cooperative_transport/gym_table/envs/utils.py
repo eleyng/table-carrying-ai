@@ -31,6 +31,7 @@ STATE_W = 256
 STATE_H = 256
 rad = np.pi / 180.0
 wallpts = np.array([[0, 0], [0, WINDOW_H], [WINDOW_W, WINDOW_H], [WINDOW_W, 0], [0, 0]])
+obstacle_size = 45
 
 
 

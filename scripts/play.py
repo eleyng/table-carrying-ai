@@ -62,7 +62,8 @@ def play(env, zoom=None, keys_to_action=None):
     next_game_tick = time.time()
     clock = pygame.time.Clock()
     cnt = 0
-    joysticks = utils.init_joystick()
+    if env.control_type == "joystick":
+        joysticks = utils.init_joystick()
 
     # GAME LOOP
     while running:

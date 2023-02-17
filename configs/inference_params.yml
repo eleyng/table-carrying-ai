@@ -1,3 +1,12 @@
+
+data_base: 'datasets'
+map_config: rnd_obstacle_v2
+run_name: random_run_name
+ep: 0
+seed: 88
+
+
+
 dataset_for_aug: final_dataset-test_0.05/train
 new_dataset_name: dataset-with-vel-map
 which_test: unseen_map
@@ -6,7 +15,6 @@ num_unseen_map: 47
 test_percentage: 0.05
 run_mode: hil
 sim_mode: eval
-data_base: 'datasets'
 data_aug: False
 map_config: 'rnd_obstacle_v2'
 run_name: 'success_1'

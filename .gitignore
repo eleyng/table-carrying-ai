@@ -1,3 +1,6 @@
+# Ignore external repos
+algo/planners/cooperative-planner/
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

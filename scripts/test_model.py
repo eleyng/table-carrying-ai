@@ -1,57 +1,35 @@
-import pdb
 import random
 import argparse
 import torch
-import yaml
 import gym
 import time
-import copy
 import pygame
 import numpy as np
-from numpy.linalg import norm
 import os
-from os.path import join, exists, dirname, abspath, isdir, isfile
+from os.path import join, exists, isdir, isfile
 from os import mkdir, listdir
-from stable_baselines3.common.env_checker import check_env
 
 import sys
 
-sys.path.append("/home/armlab/cooperative-world-models/models/")
+# NOTE: Make sure to add the path to the cooperative-planner repo
+sys.path.append("algo/planners/cooperative-planner/models/")
 from models.vrnn import VRNN
 
-from cooperative_transport.gym_table.envs.utils import load_cfg, init_joystick
+from cooperative_transport.gym_table.envs.utils import load_cfg, init_joystick, debug_print, FPS, CONST_DT, MAX_FRAMESKIP
+from libs.planner_utils import (
+    pid_single_step,
+    update_queue,
+    tf2model,
+    tf2sim,
+)
+from configs.exp_cfg import get_args
 
-VERBOSE = False
+VERBOSE = False # Set to True to print debug info
 
 
-def debug_print(*args):
-    if not VERBOSE:
-        return
-    print(*args)
 
-
-FPS = 30
-CONST_DT = 1 / FPS
-MAX_FRAMESKIP = 10  # Min Render FPS = FPS / max_frameskip, i.e. framerate can drop until min render FPS
-
-# TODO: either move all this stuff into a util file as enum or expose it to be configurable
-# table parameters
-m = 2.0
-b = 2.0
-I = 1.0
-L = 1.0
-d = 40
-
-torch.backends.cudnn.deterministic = True
-random.seed(1)
-torch.manual_seed(1)
-torch.cuda.manual_seed(1)
-np.random.seed(1)
-device = torch.device("cpu")
-debug_print("device: ", device)
-
-# get metadata from config file
-yaml_filepath = join("cooperative_transport/gym_table/config/inference_params.yml")
+# get GT data for loading trial configs
+yaml_filepath = join("configs/inference_params.yml")
 meta_cfg = load_cfg(yaml_filepath)
 data_base = meta_cfg["data_base"]
 dataset = meta_cfg["dataset"]
@@ -62,169 +40,14 @@ map_cfg = (
     "cooperative_transport/gym_table/config/maps/" + meta_cfg["map_config"] + ".yml"
 )  # path to map config file
 
-
-def get_action_from_wrench(wrench, current_state, u_h):
-    # pdb.set_trace()
-    new_wx = wrench[0] - u_h[0]
-    new_wy = wrench[1] - u_h[1]
-    new_wz = wrench[2] - L / 2.0 * (
-        np.sin(current_state[2]) * u_h[0] + np.cos(current_state[2]) * u_h[1]
-    )
-    new_wrench = np.array([new_wx, new_wy, new_wz]).T
-    G = (
-        [1, 0],
-        [0, 1],
-        [
-            -L / 2.0 * np.sin(current_state[2]),
-            -L / 2.0 * np.cos(current_state[2]),
-        ],
-    )
-    F_des = np.linalg.pinv(G).dot(new_wrench)
-    debug_print("FDES: ", F_des)
-    # f1_x, f1_y = F_des[0], F_des[1]
-
-    return F_des  # in world frame
-
-
-def get_joint_action_from_wrench(wrench, current_state):
-    # pdb.set_trace()
-    new_wx = wrench[0]
-    new_wy = wrench[1]
-    new_wz = wrench[2]
-    new_wrench = np.array([new_wx, new_wy, new_wz]).T
-    G = (
-        [1, 0, 0],
-        [0, 1, 0],
-        [
-            -L / 2.0 * np.sin(current_state[2]),
-            -L / 2.0 * np.cos(current_state[2]),
-            L / 2.0 * np.sin(current_state[2]),
-            L / 2.0 * np.cos(current_state[2]),
-        ],
-    )
-    F_des = np.linalg.pinv(G).dot(new_wrench)
-    debug_print("FDES: ", F_des)
-    # f1_x, f1_y = F_des[0], F_des[1]
-
-    return F_des  # in world frame
-
-
-def pid_single_step(
-    env,
-    waypoint,
-    kp=0.5,
-    ki=0.0,
-    kd=0.0,
-    max_iter=3,
-    dt=CONST_DT,
-    eps=1e-2,
-    linear_speed_limit=[-2.0, 2.0],
-    angular_speed_limit=[-np.pi / 8, np.pi / 8],
-    u_h=None,
-):
-    ang = np.arctan2(waypoint[3], waypoint[2])
-
-    # ang[ang < 0] += 2 * np.pi
-    if ang < 0:
-        ang += 2 * np.pi
-
-    waypoint = np.array([waypoint[0], waypoint[1], ang])
-
-    curr_target = waypoint
-
-    curr_state = np.array([env.table.x, env.table.y, env.table.angle])
-    error = curr_target - curr_state
-    wrench = kp * error
-    # Get actions from env
-    if u_h is None:
-        raise ValueError("u_h was never passed to pid.")
-    F_des_r = get_action_from_wrench(wrench, curr_state, u_h)
-    return F_des_r
-
-
-def update_queue(a, x):
-    return torch.cat([a[1:, :], x], dim=0)
-
-
-def tf2model(state_data):
-    # must remove theta obs (last dim of state_data)
-    # takes observation (only map info) and returns ego-centric vector to obs/goal for use in model
-    state_xy = state_data[:, :2]
-    state_th = state_data[:, 2:4]
-    state_data_ego_pose = np.diff(state_xy, axis=0)
-    state_data_ego_th = np.diff(state_th, axis=0)
-    goal_lst = np.empty(shape=(state_data_ego_pose.shape[0], 2), dtype=np.float32)
-    obs_lst = np.empty(shape=(state_data_ego_pose.shape[0], 2), dtype=np.float32)
-
-    for t in range(state_data_ego_pose.shape[0]):
-        p_ego2obs_world = state_data[t, 6:8] - state_xy[t, :]
-        # print("p_ego2obs_world", p_ego2obs_world.shape)
-        p_ego2goal_world = state_data[t, 4:6] - state_xy[t, :]
-
-        cth = np.cos(state_data[t, 8])
-        sth = np.sin(state_data[t, 8])
-        # goal & obs in ego frame
-        obs_lst[t, 0] = cth * p_ego2obs_world[0] + sth * p_ego2obs_world[1]
-        obs_lst[t, 1] = -sth * p_ego2obs_world[0] + cth * p_ego2obs_world[1]
-
-        goal_lst[t, 0] = cth * p_ego2goal_world[0] + sth * p_ego2goal_world[1]
-        goal_lst[t, 1] = -sth * p_ego2goal_world[0] + cth * p_ego2goal_world[1]
-
-    qm = 10
-    goal_lst = goal_lst / qm
-    obs_lst = obs_lst / qm
-
-    state = np.concatenate(
-        (
-            state_data_ego_pose,
-            state_data_ego_th,
-            goal_lst,
-            obs_lst,
-        ),
-        axis=1,
-    )
-
-    return torch.as_tensor(state)
-
-
-def tf2sim(sample, init_state, H):
-    x = init_state[-1, 0] + torch.cumsum(sample[:, H:, 0], dim=0).detach().cpu().numpy()
-
-    y = init_state[-1, 1] + torch.cumsum(sample[:, H:, 1], dim=0).detach().cpu().numpy()
-    cth = (
-        init_state[-1, 2] + torch.cumsum(sample[:, H:, 2], dim=0).detach().cpu().numpy()
-    )
-    sth = (
-        init_state[-1, 3] + torch.cumsum(sample[:, H:, 3], dim=0).detach().cpu().numpy()
-    )
-    # pdb.set_trace()
-    x = np.expand_dims(x, axis=-1)
-    y = np.expand_dims(y, axis=-1)
-    cth = np.expand_dims(cth, axis=-1)
-    sth = np.expand_dims(sth, axis=-1)
-    waypoints_wf = np.concatenate((x, y, cth, sth), axis=-1)
-
-    return waypoints_wf
-
-
-def tf_ego2w(obs_data_w, pred_ego):
-    # takes model output and returns world-centric vector to obs/goal for use in pid controller
-    cth = obs_data_w[2]
-    sth = obs_data_w[3]
-
-    p_wayptFromTable_w_x = obs_data_w[0] + cth * pred_ego[0] - sth * pred_ego[1]
-    p_wayptFromTable_w_y = obs_data_w[1] + sth * pred_ego[0] + cth * pred_ego[1]
-
-    p_table_w = obs_data_w[:2]
-
-    p_waypt_w = p_table_w + np.concatenate(
-        (
-            p_wayptFromTable_w_x,
-            p_wayptFromTable_w_y,
-        ),
-    )
-
-    return p_waypt_w
+SEED = meta_cfg["seed"]
+torch.backends.cudnn.deterministic = True
+random.seed(SEED)
+torch.manual_seed(SEED)
+torch.cuda.manual_seed(SEED)
+np.random.seed(SEED)
+device = torch.device("cpu")
+debug_print("device: ", device)
 
 
 def compute_reward(env=None, states=None) -> float:
@@ -301,14 +124,13 @@ def play_hil(
     running = True
     next_game_tick = time.time()
     clock = pygame.time.Clock()
-    success = True
+    success = False
 
     # Initialize human input controller
-    joysticks = init_joystick()  ## FIXME
+    if env.control_type == "joystick":
+        joysticks = init_joystick()
     p2_id = 0
 
-    # Initialize ego controls -  first 15 steps
-    # assert train_stats is not None, "Missing train_stats file"
     # Keep running list of past H steps of simulator observations (need tf2model for model input conversion)
     s_queue = torch.zeros(
         (mcfg.H // mcfg.skip + 1, mcfg.LSIZE + 1), dtype=torch.float32
@@ -357,7 +179,7 @@ def play_hil(
                 u_h = torch.from_numpy(np.clip(u_h, -1.0, 1.0)).unsqueeze(0)
                 debug_print("U_h", u_h)
 
-                # if at start, n_iter < H, then populate states with state history and step
+                # Initialize robot controls -  first second of GT trajectory given to robot
                 if n_iter <= mcfg.H + mcfg.skip:
                     if n_iter % mcfg.skip != 0:
                         n_iter += 1
@@ -682,14 +504,10 @@ def play_traj(
     return trajectory, success
 
 
-def main(args):
-    seed = 3
-    os.environ["PL_GLOBAL_SEED"] = str(seed)
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
+def main(sysargv):
 
+    args = get_args()
+    
     # ------------------------
     # Configure experiment
     # ------------------------
@@ -703,10 +521,9 @@ def main(args):
         if isdir(join(root, sd))
         for ssd in listdir(join(root, sd))
     ]
+
     if args.run_mode == "hil":
         model = VRNN(args)
-        # elif args.model == "vrnn_gmm":
-        #     model = VRNNGMM(args)
 
     map_root = join(
         "cooperative_transport/gym_table/envs/demo",
@@ -890,6 +707,12 @@ def main(args):
 
 
 if __name__ == "__main__":
+
+    main(sys.argv)
+
+
+
+    
     # ------------------------
     # 1 DEFINE ARGS
     # ------------------------
