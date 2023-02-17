@@ -92,7 +92,7 @@ See file for additional optional args. For each dataset collection session, you 
 - `demos/{map_config_name}/{custom_session_name}/fluency/` : logs the fluency computed for each trajectory, stored in a .npz.
 - `demos/{map_config_name}/{custom_session_name}/figures/` : saves the RGB images for each trajectory.  
 
-The trajectory data is collected as a .pkl, and you can run processing on it to convert to .npz, and other steps like low-pass filters to the actions, skip frames, or removing frames with stopped motion. To run the dataprocessing script, modify `configs/dataset_processing_params.yml`, then run `python scripts/process_data.py`. 
+The trajectory data is collected as a .pkl, and you can run processing on it to convert to .npz, and other steps like low-pass filters to the actions, skip frames, or removing frames with stopped motion. If you are collecting a human-human demo dataset and wish to visualize any of the trajectories, you **must run the dataprocessing script** to use any of the visualization tools (since trajectories are required to be in .npz). To run the dataprocessing script, modify `configs/dataset_processing_params.yml`, then run `python scripts/process_data.py`. 
 
 ### Downloading Dataset from [1]
 
@@ -117,14 +117,14 @@ If you would like to use our environment, please cite us:
 ```
 
 ## TODO:
-- add trained models
-- add model class example
+- ~~add trained models~~ this goes in other repo
+- ~~add model class example~~ this goes in other repo
 - add scripts  
   - play.py (completed)
-  - test_model.py
-  - visualize.py
-  - pkl2npy.py (completed, added config too)
-- test download instructions   
+  - plot_traj.py : need to test
+  - test_model.py : save runs to `eval/map_config (rnd_obs_v2) / run_name (random_run) / trajecotries / ep + .npz`
+  - process_data.py (completed, added config too)
+- test download instructions 
 
 ## Contact  
 For issues, comments, suggestions, or anything else, please contact [Eley Ng](https://eleyng.github.io) at eleyng@stanford.edu.
