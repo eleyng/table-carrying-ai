@@ -1,6 +1,5 @@
 import numpy as np
 from scipy import signal
-from scipy.fftpack import fft, ifft
 import pickle
 from os import listdir, mkdir
 from os.path import join, isfile, isdir

@@ -1,6 +1,5 @@
 import gym
 import pygame
-from collections import deque
 import time
 import argparse
 import numpy as np
