@@ -1,13 +1,14 @@
 import torch
 import numpy as np
 from cooperative_transport.gym_table.envs.utils import (
-    m,
     b,
     I,
     L,
     d,
     CONST_DT,
 )
+
+""" For planner used in Ng, et al. Learning to Plan for Human-Robot Cooperative Carrying. (ICRA 2023)."""
 
 
 def get_action_from_wrench(wrench, current_state, u_h):

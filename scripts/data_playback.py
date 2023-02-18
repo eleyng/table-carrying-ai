@@ -4,6 +4,8 @@ import numpy as np
 from stable_baselines3.common.env_checker import check_env
 import pickle
 
+""" Playback a trajectory from a file, on the gym environment. """
+
 env = gym.make('cooperative_transport.gym_table:table-v0')
 #print("Checking environment!")
 #check_env(env, warn=True)

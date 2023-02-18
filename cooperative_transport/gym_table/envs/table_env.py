@@ -41,6 +41,10 @@ from cooperative_transport.gym_table.envs.utils import (
     set_action_joystick,
 )
 
+from cooperative_transport.gym_table.envs.custom_rewards import (
+    custom_reward_function,
+)
+
 VERBOSE = False  # For debugging
 
 
@@ -349,6 +353,7 @@ class TableEnv(gym.Env):
         state_dim=9,
         max_num_obstacles=3,
         max_num_env_steps=1000,
+        include_interaction_forces_in_rewards=False,
     ) -> None:
         """
         Initialize the environment.
@@ -424,6 +429,7 @@ class TableEnv(gym.Env):
         self.past_states = None
         self.completed_traj = None
         self.completed_traj_fluency = None
+        self.include_interaction_forces_in_rewards = include_interaction_forces_in_rewards
 
         self.init_pygame()
         self.handle_kwargs(obs, control, map_config, ep)
@@ -554,6 +560,7 @@ class TableEnv(gym.Env):
             print("success", self.done, self.success, self.n_step, reward, self.inter_f)
             self.completed_traj = self.data
             self.completed_traj_fluency = self.fluency
+            info["fluency"] = self.fluency
             states = self.reset()
             return (
                 states,
@@ -565,7 +572,9 @@ class TableEnv(gym.Env):
             print("done", self.done, self.success, self.n_step, reward, self.inter_f)
             self.completed_traj = self.data
             self.completed_traj_fluency = self.fluency
-            states = self.reset()
+            states = self.get_state()
+            info["fluency"] = self.fluency
+            self.reset()
             return (
                 states,
                 torch.FloatTensor(np.array([reward,])),
@@ -578,7 +587,9 @@ class TableEnv(gym.Env):
                 print("done", self.done, self.success, self.n_step, reward, self.inter_f) 
                 self.completed_traj = self.data
                 self.completed_traj_fluency = self.fluency
-                states = self.reset()
+                states = self.get_state()
+                info["fluency"] = self.fluency
+                self.reset()
                 return (
                     states,
                     torch.FloatTensor(np.array([reward,])),
@@ -689,63 +700,9 @@ class TableEnv(gym.Env):
 
         self.dist2wall = np.min(self.dist2wall_list, axis=1, keepdims=True)
 
-    def compute_reward(self, states=None, vectorized=False) -> float:
-        # states should be an N x 3 array
-        assert (
-            len(states.shape) == 2
-        ), "state shape mismatch for vectorized compute_reward"
-        assert (
-            states.shape[1] == 3
-        ), "state shape mismatch for vectorized compute_reward"
-        assert states is not None, "states parameter cannot be None"
-
-        n = states.shape[0]
-        reward = np.zeros(n)
-        # slack reward
-        reward += -0.1
-        if states is not None:
-            dg = np.linalg.norm(states[:, :2] - self.goal, axis=1)
-        else:
-            dg = self.dist2goal
-        a = 0.98
-        const = 100.0
-        r_g = 10.0 * np.power(a, dg - const)
-        reward += r_g
-
-        r_obs = np.zeros(n)
-        b = -8.0
-        c = 0.9
-        const = 150.0
-
-        if states is not None:
-            d2obs_lst = np.asarray(
-                [
-                    np.linalg.norm(
-                        states[:, :2]
-                        - np.array([self.obs_sprite[i].x, self.obs_sprite[i].y]),
-                        axis=1,
-                    )
-                    for i in range(self.num_obstacles)
-                ],
-                dtype=np.float32,
-            )
-
-        # negative rewards for getting close to wall
-        for i in range(self.num_obstacles):
-            if states is not None:
-                d = d2obs_lst[i]
-            else:
-                d = self.dist2obs[i]
-            if d.any() < const:
-                r_obs += b * np.power(c, d - const)
-
-        reward += r_obs
-        print("Total step reward: ", self.n_step, reward)
-
-        if vectorized:
-            return reward
-        else:
-            return reward[0]
+    def compute_reward(self, states, interaction_forces=None, vectorized=False) -> float:
+        reward = custom_reward_function(states, self.goal, self.obstacles, interaction_forces=self.include_interaction_forces_in_rewards, vectorized=vectorized)
+        return reward
 
     def check_collision(self) -> bool:
         """Check for collisions.

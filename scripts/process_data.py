@@ -184,7 +184,7 @@ for f in traj_files:
     ### Save data as .npz file for model handling ###
     if not isdir(join(np_root, game[-2])):
         mkdir(join(np_root, game[-2]))
-    rollout_f = join(np_root, game[-2], game[-2] + ".npz")
+    rollout_f = join(np_root, game[-2], "ep_" + game[-2] + ".npz")
 
     np.savez(
         rollout_f,

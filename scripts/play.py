@@ -128,6 +128,7 @@ def play(env, zoom=None, keys_to_action=None):
 
 
 def main():
+    
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--env",
@@ -156,7 +157,7 @@ def main():
     parser.add_argument(
         "--run_name",
         type=str,
-        default="random_run_name",
+        default="random_run_name_2",
         help="run_name name for data collection. creates a folder with this name in the repo's base directory to store data.",
     )
     parser.add_argument(
