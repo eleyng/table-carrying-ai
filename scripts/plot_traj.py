@@ -16,7 +16,8 @@ def vis(args):
         NOTE: You must have a ground truth demo trajectory to compare against, 
         to see potential deviations in behavior for the given 
         map config (initial pose, goal, and obstacle layout). 
-        To elaborate, an example flow might go like this:
+
+        To elaborate, the workflow might go like this:
         1. Collect a trajectory using the HIL or running robot-robot co-policy.
             During this collection, a ground truth map config is loaded, so the 
             trajectory rollout is given the same map config as the ground truth.

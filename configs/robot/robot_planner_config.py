@@ -113,50 +113,6 @@ def get_planner_args():
         help="Weight init for linear layers.",
     )
 
-    # ------------------------ OPTIMIZER ------------------------
-    # parser.add_argument(
-    #     "--alpha",
-    #     type=float,
-    #     default=0.99,
-    #     help="Smoothing constant for RMSProp Optimizer.",
-    # )
-    # parser.add_argument(
-    #     "--weight_decay",
-    #     type=float,
-    #     default=0.2,
-    #     help="Weight decay (L2 regularizer) for RMSProp Optimizer.",
-    # )
-
-    # ------------------------ LR SCHEDULER ------------------------
-    # parser.add_argument(
-    #     "--factor",
-    #     type=float,
-    #     default=0.7,
-    #     help="Factor by which the learning rate will be reduced for LRScheduler.",
-    # )
-    # parser.add_argument(
-    #     "--patience",
-    #     type=int,
-    #     default=5,
-    #     help="num epochs of no change before the learning rate will be reduced for LRScheduler.",
-    # )
-    # parser.add_argument(
-    #     "--lr", type=float, default=0.0008, help="Training learning rate."
-    # )
-
-    # ------------------------ BETA SCHEDULER ------------------------
-    # Beta scheduling to balance KL loss and reconstruction loss training. Starts at beta_min, and increases to beta_max using cyclic annealing.
-    # Parameters for Cyclic Annealing VAE (CAVAE) (https://arxiv.org/abs/1903.10145)
-    # parser.add_argument(
-    #     "--cycle", type=int, default=4, help="Number of cycles for beta scheduler."
-    # )
-    # parser.add_argument(
-    #     "--R",
-    #     type=int,
-    #     default=0.5,
-    #     help="Proportion used to increase beta over a cycle.",
-    # )
-
     # ------------------------ DON'T CHANGE THESE SETTINGS FOR EVALUATION ------------------------
     parser.add_argument(
         "--train",
