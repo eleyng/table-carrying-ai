@@ -105,6 +105,12 @@ To evaluate your model, you can load it and play with it in real time as human t
 2. Run `python scripts/test_model.py` using various flags (see file for details). You can run the model autonomously, or run with a human in the loop.
 3. Runs will be saved as a .npz file. You can visualize them via `scipts/visualize_trajectory.py`.
 
+## Further Use Cases
+
+In the `scripts/test_model.py` script, you can run several types of experiments by indicating options:
+- `--robot-mode [planner | policy | data]`
+- `--human-mode [real | data | policy]`
+
 ## Cite
 If you would like to use our environment, please cite us:
 ```
@@ -117,14 +123,11 @@ If you would like to use our environment, please cite us:
 ```
 
 ## TODO:
-- ~~add trained models~~ this goes in other repo
-- ~~add model class example~~ this goes in other repo
-- add scripts  
-  - play.py (completed)
-  - plot_traj.py : need to test
-  - test_model.py : save runs to `eval/map_config (rnd_obs_v2) / run_name (random_run) / trajecotries / ep + .npz`
-  - process_data.py (completed, added config too)
+- test scripts
 - test download instructions 
+
+## Upcoming features:
+- add human bc policy + update test script
 
 ## Contact  
 For issues, comments, suggestions, or anything else, please contact [Eley Ng](https://eleyng.github.io) at eleyng@stanford.edu.
