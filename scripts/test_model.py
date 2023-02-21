@@ -13,7 +13,7 @@ import sys
 from algo.planners.cooperative_planner.models import VRNN
 
 from cooperative_transport.gym_table.envs.utils import CONST_DT
-from libs.utils import play_hil_planner
+from libs.hil_methods import play_hil_planner
 
 
 # Import experiment configs

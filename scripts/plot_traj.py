@@ -11,6 +11,10 @@ from cooperative_transport.gym_table.envs.utils import (
     obstacle_size,
 )
 
+from libs.utils import (
+    make_video,
+)
+
 def vis(args):
     """ Visualize a HIL or standard trajectory. 
         NOTE: You must have a ground truth demo trajectory to compare against, 
@@ -26,30 +30,13 @@ def vis(args):
     """
     
     # load traj
-    f = join(
-        "eval",
-        args.map_config,
-        args.run_name,
-        "trajectories",
-        args.ep + ".npz"
-    )
+    f = args.path_to_traj
     assert isfile(f), "Trajectory file not found in path specified: {0}".format(f)
-    gt_f = join(
-        "demo",
-        args.map_config,
-        args.run_name,
-        args.ep + ".npz"
-    )
+    gt_f = args.path_to_gt
     assert isfile(gt_f), "Ground truth trajectory file not found in path specified: {0}".format(gt_f)
 
     # load map
-    map_f = join(
-        "demo",
-        args.map_config,
-        args.run_name,
-        "map_cfg",
-        "config_params-ep_{0}.npz".format(args.ep)
-    )
+    map_f = args.path_to_map
     assert isfile(map_f), "Map file not found in path specified: {0}".format(map_f)
 
     hspace, vspace = (WINDOW_W / 100, WINDOW_H / 100)
@@ -145,8 +132,8 @@ def vis(args):
             plt.scatter(init_x, init_y, c="black", s=2)
 
             plt.plot(
-                traj[: t, 0],
-                traj[: t, 1],
+                traj[H - 1 : t, 0],
+                traj[H - 1 : t, 1],
                 c=(243 / 255, 162 / 255, 97 / 255),
                 alpha=1.0,
                 markersize=5,
@@ -162,19 +149,20 @@ def vis(args):
                 linewidth=3,
             )
 
-        
-        f = join(
-                "traj_vis_plots",
-                args.map_config
-                + "_"
-                + args.run_name
-                + "_"
-                + args.ep
-                + "_",
-                str(t)
+        plot_dir = join(
+                "results",
+                "plots",
+                args.path_to_traj.split("/")[-1].split(".")[0], 
             )
-
-        plot_name = join(f, ".png")
+        if not isdir(plot_dir):
+            mkdir(plot_dir)
+        
+        plot_name = join(
+                "results",
+                "plots",
+                args.path_to_traj.split("/")[-1].split(".")[0], 
+                "{0}".format(t),
+            )
 
         if not isdir("traj_vis_plots"):
             mkdir("traj_vis_plots")
@@ -185,8 +173,7 @@ def vis(args):
         plt.close()
 
     if args.video:
-        ## TODO: add video code
-        pass
+        make_video(plot_dir, args.path_to_traj.split("/")[-1].split(".")[0])
         
 
 
@@ -195,8 +182,20 @@ def main():
     parser.add_argument(
         "--path-to-traj",
         type=str,
-        default="",
-        help="Path to trajectory file",
+        default="results/eval_hil_seed-88_R-planner_H-data/eval_hil_seed-88_R-planner_H-data_ep_373.npz",
+        help="Path to trajectory file (.npz)",
+    )
+    parser.add_argument(
+        "--path-to-gt",
+        type=str,
+        default="datasets/table-demos/table-demos_traj/test/test_holdout/373/ep_373.npz",
+        help="Path to trajectory file (.npz)",
+    )
+    parser.add_argument(
+        "--path-to-map",
+        type=str,
+        default="datasets/table-demos/table-demos_map-cfg/map_cfg/ep_373.npz",
+        help="Path to map file (.npz)",
     )
     parser.add_argument(
         "--run_mode",
