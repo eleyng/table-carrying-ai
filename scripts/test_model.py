@@ -100,6 +100,7 @@ def main(exp_args, exp_name):
                 display_pred=exp_args.display_pred,
                 display_gt=exp_args.display_gt,
                 display_past_states=exp_args.display_past_states,
+                include_interaction_forces_in_rewards=exp_args.include_interaction_forces_in_rewards,
             )
             
             print("Run finished. Task succeeded: {0}. Num steps taken in env: {1}. Episode {2}.".format(success, n_iter, ep))

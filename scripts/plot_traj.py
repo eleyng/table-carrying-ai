@@ -28,16 +28,26 @@ def vis(args):
         2. Run this script to visualize the trajectory rollout, and compare it 
             to the ground truth trajectory. Multimodal behavior might occur.
     """
-    
+    # ------------------------ Directories Setup ------------------------
+    # Setup directories
+    if not isdir("results"):
+            mkdir("results")
+    if not isdir(join("results", "plots")):
+        mkdir(join("results", "plots"))
+
+    # ------------------------ Load Trajectories ------------------------
+
     # load traj
     f = args.path_to_traj
     assert isfile(f), "Trajectory file not found in path specified: {0}".format(f)
+    # load gt traj
     gt_f = args.path_to_gt
     assert isfile(gt_f), "Ground truth trajectory file not found in path specified: {0}".format(gt_f)
-
     # load map
     map_f = args.path_to_map
     assert isfile(map_f), "Map file not found in path specified: {0}".format(map_f)
+
+    # ------------------------ Plotting Setup ------------------------
 
     hspace, vspace = (WINDOW_W / 100, WINDOW_H / 100)
     fig = plt.figure(figsize=(hspace, vspace), dpi=500)
@@ -62,6 +72,8 @@ def vis(args):
     num_obs = map_run["obstacles"].item()["num_obstacles"]
     obs = np.zeros((num_obs, 2))
     obstacles = map_run["obstacles"].item()["obstacles"]
+
+    # ------------------------ Plotting --------------------------------
 
     for t in range(1, gt.shape[0], args.skip):
         # plot map
@@ -171,6 +183,8 @@ def vis(args):
         plt.ylabel("ylabel", fontsize=16)
         plt.savefig(plot_name, dpi=500)
         plt.close()
+
+    # ------------------------ Video --------------------------------
 
     if args.video:
         make_video(plot_dir, args.path_to_traj.split("/")[-1].split(".")[0])
