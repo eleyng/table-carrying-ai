@@ -107,6 +107,7 @@ def play_hil_planner(
         "data",
         "real",
         "policy",
+        "planner"
     ], "human arg must be one of 'data', 'policy', or 'real'"
     if human == "real":
         if env.control_type == "joystick":
@@ -120,6 +121,8 @@ def play_hil_planner(
             raise ValueError("control_type must be 'joystick' or 'keyboard'")
     elif human == "policy":
         raise NotImplementedError("BC policy not implemented yet")
+    elif human == "planner":
+        assert robot == "planner", "Must be in co-planning mode if human is planner. Change robot mode to 'planner'"
     else:
         assert playback_trajectory is not None, "Must provide playback trajectory"
         assert (
@@ -128,6 +131,8 @@ def play_hil_planner(
     # Set n_steps to data limit if using human or robot data as control inputs
     if human == "data" or robot == "data":
         n_steps = len(playback_trajectory["actions"]) - 1
+    coplanning = True if (human == "planner" and robot == "planner") else False
+        
     
     # Check for valid robot arg
     assert robot in ["planner", "data"], "robot arg must be one of 'planner' or 'data'"
@@ -215,8 +220,14 @@ def play_hil_planner(
                         
 
                 elif human == "policy":
-
                     pass  # TODO: implement this
+
+                elif human == "planner":
+                    if n_iter <= mcfg.H + mcfg.skip:
+                        u_h = playback_trajectory["actions"][n_iter, 2:]
+                        u_h = torch.from_numpy(u_h).unsqueeze(0)
+                    else:
+                        pass
 
                 else:
                     # If using human data, then get the actions from the playback trajectory
@@ -340,15 +351,20 @@ def play_hil_planner(
                             dt=CONST_DT,
                             eps=1e-2,
                             u_h=u_h.squeeze().numpy(),
+                            joint=coplanning,
                         )
                         pid_actions /= np.linalg.norm(pid_actions)
 
-                        u_r = torch.from_numpy(np.clip(pid_actions, -1.0, 1.0)).unsqueeze(0)
+                        if not coplanning:
+                            u_r = torch.from_numpy(np.clip(pid_actions, -1.0, 1.0)).unsqueeze(0)
+                            u_all = torch.cat((u_r, u_h), dim=-1)
+
+                        else:
+                            u_all = torch.from_numpy(np.clip(pid_actions, -1.0, 1.0)).unsqueeze(0)
 
                     else:
                         u_r = torch.from_numpy(playback_trajectory["actions"][n_iter, :2]).unsqueeze(0)
 
-                u_all = torch.cat((u_r, u_h), dim=-1)
                 u_queue = update_queue(u_queue, u_all)
 
                 # -------------------------------------------- UPDATE ENVIRONMENT -------------------------------------------- #

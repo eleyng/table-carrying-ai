@@ -40,8 +40,8 @@ def get_joint_action_from_wrench(wrench, current_state):
     new_wz = wrench[2]
     new_wrench = np.array([new_wx, new_wy, new_wz]).T
     G = (
-        [1, 0, 0],
-        [0, 1, 0],
+        [1, 0, 0, 0],
+        [0, 1, 0, 0],
         [
             -L / 2.0 * np.sin(current_state[2]),
             -L / 2.0 * np.cos(current_state[2]),
@@ -67,6 +67,7 @@ def pid_single_step(
     linear_speed_limit=[-2.0, 2.0],
     angular_speed_limit=[-np.pi / 8, np.pi / 8],
     u_h=None,
+    joint=False,
 ):
     ang = np.arctan2(waypoint[3], waypoint[2])
 
@@ -84,7 +85,10 @@ def pid_single_step(
     # Get actions from env
     if u_h is None:
         raise ValueError("u_h was never passed to pid.")
-    F_des_r = get_action_from_wrench(wrench, curr_state, u_h)
+    if joint:
+        F_des_r = get_joint_action_from_wrench(wrench, curr_state)
+    else:
+        F_des_r = get_action_from_wrench(wrench, curr_state, u_h)
     return F_des_r
 
 

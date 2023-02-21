@@ -15,7 +15,7 @@ def get_experiment_args(parser):
         "--run-mode",
         type=str,
         default="hil",
-        help="Run mode. Options: [hil | replay_traj]",
+        help="Run mode. Options: [hil | replay_traj | coplanning]",
     )
     parser.add_argument(
         "--ep", type=int, default=0, help="Episode number to start from when recording data."

@@ -85,7 +85,7 @@ def main(exp_args, exp_name):
             dt=CONST_DT,
         )
 
-        if exp_args.run_mode ==  "hil":
+        if exp_args.run_mode ==  "hil" or exp_args.run_mode == "coplanning":
 
             trajectory, success, n_iter, duration = play_hil_planner(
                 env,
@@ -145,7 +145,7 @@ if __name__ == "__main__":
 
     exp_args = parser.add_argument_group("Experiment Settings")
     get_experiment_args(exp_args)
-    assert sys.argv[2] in ["replay_traj", "hil"], "Run mode not supported"
+    assert sys.argv[2] in ["replay_traj", "hil", "coplanning"], "Run mode not supported"
     if sys.argv[2] == "replay_traj":
         assert sys.argv[4] == 'data' and sys.argv[6] == "data", "Replay traj mode requires --human-mode and --robot-mode to be data"
 
@@ -189,10 +189,12 @@ if __name__ == "__main__":
     print("Begin experiment in {} mode!".format(exp_args.run_mode))
 
     if exp_args.run_mode == "hil":
+        assert not exp_args.human_mode == "planner", "Set run mode to coplanning if both robot and human is planner"
         assert not (exp_args.robot_mode == "data" and exp_args.human_mode == "data"), "HIL mode require that both human and robot are not from data. Use replay_traj mode instead."
-        exp_name = "eval_" + exp_args.run_mode + "_seed-" + str(exp_args.seed) + "_R-" + \
-            exp_args.robot_mode + "_H-" + exp_args.human_mode + "_" + exp_args.human_control
-        print("Experiment name: ", exp_name)
+    
+    exp_name = "eval_" + exp_args.run_mode + "_seed-" + str(exp_args.seed) + "_R-" + \
+        exp_args.robot_mode + "_H-" + exp_args.human_mode + "_" + exp_args.human_control
+    print("Experiment name: ", exp_name)
 
     print("Robot {0} loaded from {1}: ".format(exp_args.robot_mode, exp_args.artifact_path))  
     main(exp_args, exp_name)
