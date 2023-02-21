@@ -68,7 +68,10 @@ To set the path for various test set ground truth trajectories:
 ### Visualizing
 To visualize your human-in-the-loop trials (or other experiment), run:  
 `python scripts/plot_traj.py --path-to-traj [path to .npz traj from experiment] --path-to-gt [path to .npz ground truth traj] --path-to-map [path to .npz map config file collected from the same run as the ground truth traj]`  
-Add the `--video` flag if you'd like to convert the images into a video!
+
+Add the `--video` flag if you'd like to convert the images into a video!  
+
+A sample evaluation with human recorded data and robot planner is included in the [dataset download](https://drive.google.com/drive/folders/1JMZys9Bfc-COZtvbLST4uiyrHnEyNIpK?usp=share_link) for quickstart plotting -- place the `results/` directory in the base dir of this repo and run the above command without any args (add the `--video` flag if you would like to render a video).
 
 ## Custom Env Structure Overview
 
