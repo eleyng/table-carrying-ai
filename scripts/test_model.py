@@ -191,7 +191,7 @@ if __name__ == "__main__":
     if exp_args.run_mode == "hil":
         assert not (exp_args.robot_mode == "data" and exp_args.human_mode == "data"), "HIL mode require that both human and robot are not from data. Use replay_traj mode instead."
         exp_name = "eval_" + exp_args.run_mode + "_seed-" + str(exp_args.seed) + "_R-" + \
-            exp_args.robot_mode + "_H-" + exp_args.human_mode
+            exp_args.robot_mode + "_H-" + exp_args.human_mode + "_" + exp_args.human_control
         print("Experiment name: ", exp_name)
 
     print("Robot {0} loaded from {1}: ".format(exp_args.robot_mode, exp_args.artifact_path))  

@@ -125,8 +125,6 @@ def play_hil_planner(
         assert (
             human == "data"
         ), "human arg must be from 'data' if not 'real' or 'policy'"
-        # If using human data, then get the actions from the playback trajectory
-        actions = playback_trajectory["actions"][:, 2:]
     # Set n_steps to data limit if using human or robot data as control inputs
     if human == "data" or robot == "data":
         n_steps = len(playback_trajectory["actions"]) - 1
@@ -213,7 +211,8 @@ def play_hil_planner(
                     else:
                         u_h = keys_to_action.get(tuple(sorted(pressed_keys)), 0)
                         u_h = set_action_keyboard(u_h)
-                        u_h = torch.from_numpy(u_h).unsqueeze(0)
+                        u_h = torch.from_numpy(u_h[1, :]).unsqueeze(0)
+                        
 
                 elif human == "policy":
 
@@ -222,10 +221,10 @@ def play_hil_planner(
                 else:
                     # If using human data, then get the actions from the playback trajectory
                     if exp_run_mode == "replay_traj" or human == "data" or robot == "data":
-                        n_iter = min(n_iter, actions.shape[0] - 1) # Needed to account finish the playback
+                        n_iter = min(n_iter, playback_trajectory["actions"].shape[0] - 1) # Needed to account finish the playback
                     # else:
                     #     assert n_iter < actions.shape[0], "Ran out of human actions from data."
-                    u_h = actions[n_iter, :2]
+                    u_h = playback_trajectory["actions"][n_iter, 2:]
                     u_h = torch.from_numpy(u_h).unsqueeze(0)
 
                 
@@ -243,7 +242,7 @@ def play_hil_planner(
                         continue
 
                     # Feed first H steps of state history into simulator
-                    u_r = torch.from_numpy(actions[n_iter, :2]).unsqueeze(0)
+                    u_r = torch.from_numpy(playback_trajectory["actions"][n_iter, :2]).unsqueeze(0)
                     u_all = torch.cat(
                         (u_r, u_h), dim=-1
                     )  # player 1 is blue, and in this sim human is player 2 (orange)
@@ -325,7 +324,6 @@ def play_hil_planner(
                         end_plan = time.time()
                         delta_plan = end_plan - start_plan
                         delta_plan_sum += delta_plan
-                        # print("Planning time for this step: ", delta_plan)
 
                         if display_pred:
                             env.update_prediction(path.tolist())
@@ -348,7 +346,7 @@ def play_hil_planner(
                         u_r = torch.from_numpy(np.clip(pid_actions, -1.0, 1.0)).unsqueeze(0)
 
                     else:
-                        u_r = torch.from_numpy(actions[n_iter, :2]).unsqueeze(0)
+                        u_r = torch.from_numpy(playback_trajectory["actions"][n_iter, :2]).unsqueeze(0)
 
                 u_all = torch.cat((u_r, u_h), dim=-1)
                 u_queue = update_queue(u_queue, u_all)
@@ -371,10 +369,8 @@ def play_hil_planner(
                 trajectory["rewards"].append(reward)
                 trajectory["fluency"].append(env.fluency)
                 if env.done:
-                    print(info["success"])
                     env.reset()
                     if info["success"]:
-                        print("SUCCESS")
                         success = True
                     else:
                         success = False
@@ -389,10 +385,7 @@ def play_hil_planner(
                 continue
             else:
                 delta_plan_sum = delta_plan_sum / (loops)
-            print("Average planning time per planning loop: ", delta_plan_sum / n_iter)
             n_iter += 1
-            # if robot == "data" and human == "data":
-            #     n_iter = min(n_iter, actions.shape[0] - 1) # Needed to account finish the playback
 
             # Update display
             if not env.done:
@@ -415,6 +408,7 @@ def play_hil_planner(
 
     stop = time.time()
     duration = stop - start
+    print("Average planning time per planning loop: ", delta_plan_sum / n_iter)
     print("Duration of run: ", duration)
     pygame.quit()
 

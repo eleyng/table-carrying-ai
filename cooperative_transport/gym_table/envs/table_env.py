@@ -278,18 +278,18 @@ class TableEnv(gym.Env):
 
     def init_action_space(self):
         # ----------------------------------------------- Action and Observation Spaces -------------------------------------------------------------
-        if self.control_type == "keyboard":
-            # define action space
-            self.action_space = spaces.Discrete(25)
-        elif self.control_type == "joystick":
-            # continuous action space specified by two pairs of joystick axis
-            action_space_low = np.array([-1.0, -1.0, -1.0, -1.0])
-            action_space_high = np.array([1.0, 1.0, 1.0, 1.0])
-            self.action_space = spaces.Box(
-                action_space_low, action_space_high, dtype=np.float32
-            )
-        else:
-            raise NotImplementedError("Unknown control type: %s" % self.control_type)
+        # if self.control_type == "keyboard":
+        #     # define action space
+        #     self.action_space = spaces.Discrete(25)
+        # elif self.control_type == "joystick":
+        #     # continuous action space specified by two pairs of joystick axis
+        action_space_low = np.array([-1.0, -1.0, -1.0, -1.0])
+        action_space_high = np.array([1.0, 1.0, 1.0, 1.0])
+        self.action_space = spaces.Box(
+            action_space_low, action_space_high, dtype=np.float32
+        )
+        # else:
+        #     raise NotImplementedError("Unknown control type: %s" % self.control_type)
 
     def init_observation_space(self):
         # discrete observation space
@@ -459,7 +459,7 @@ class TableEnv(gym.Env):
 
     def _set_action(self, action):
         if self.control_type == "keyboard":
-            return set_action_keyboard(action)
+            return set_action_joystick(action) # FIXED: actions converted to continuous before being passed to set_action_joystick
         elif self.control_type in ["joystick", "data", "policy"]:
             return set_action_joystick(action)
 
@@ -611,7 +611,7 @@ class TableEnv(gym.Env):
 
     def compute_fluency(self, action):
         if self.control_type == "keyboard":
-            return self.compute_fluency_disc(action)
+            return self.compute_fluency_cont(action) # FIXED: converted action from discrete to continuous
         elif self.control_type == "joystick":
             return self.compute_fluency_cont(action)
 
