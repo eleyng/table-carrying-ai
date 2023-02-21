@@ -12,6 +12,7 @@ from cooperative_transport.gym_table.envs.utils import (
     CONST_DT,
     MAX_FRAMESKIP,
     get_keys_to_action,
+    set_action_keyboard,
 )
 from libs.planner.planner_utils import (
     pid_single_step,
@@ -19,7 +20,6 @@ from libs.planner.planner_utils import (
     tf2model,
     tf2sim,
 )
-from libs.utils import compute_reward
 
 def compute_reward(
     states, goal, obs, interaction_forces=False, vectorized=True
@@ -43,6 +43,7 @@ def compute_reward(
 
 def play_hil_planner(
     env,
+    exp_run_mode="hil",
     human="data",
     robot="planner",
     model=None,
@@ -77,6 +78,7 @@ def play_hil_planner(
 
         Args:
             env: gym environment
+            exp_run_mode: "hil" if human in the loop, "replay_traj" if replaying data
             human: "data" if option 2), "real" if option 1), "policy" if option 3)
             model: trained planner model
             mcfg: model config
@@ -125,6 +127,12 @@ def play_hil_planner(
         ), "human arg must be from 'data' if not 'real' or 'policy'"
         # If using human data, then get the actions from the playback trajectory
         actions = playback_trajectory["actions"][:, 2:]
+    # Set n_steps to data limit if using human or robot data as control inputs
+    if human == "data" or robot == "data":
+        n_steps = len(playback_trajectory["actions"]) - 1
+    
+    # Check for valid robot arg
+    assert robot in ["planner", "data"], "robot arg must be one of 'planner' or 'data'"
 
     # ----------------------------------------------- SETUP EXPERIMENT VIS -------------------------------------------- #
 
@@ -156,7 +164,7 @@ def play_hil_planner(
 
     # Initialize running list of past H steps of observations for model inputs (need tf2model for model input conversion)
     s_queue = torch.zeros(
-        (mcfg.H // mcfg.skip + 1, mcfg.LSIZE + 1), dtype=torch.float32
+        (mcfg.H // mcfg.skip + 1, obs.shape[0]), dtype=torch.float32
     ).to(device)
     s_queue = update_queue(s_queue, obs.unsqueeze(0))
     u_queue = torch.zeros((mcfg.H // mcfg.skip, mcfg.ASIZE), dtype=torch.float32).to(
@@ -172,9 +180,10 @@ def play_hil_planner(
 
         loops = 0
 
-        if done:
+        if env.done:
             time.sleep(1)
             pygame.quit()
+            print("Episode finished after {} timesteps".format(n_iter + 1))
             break
 
         else:
@@ -199,9 +208,12 @@ def play_hil_planner(
                                 joysticks[p2_id].get_axis(1),
                             ]
                         )
+                        u_h = torch.from_numpy(np.clip(u_h, -1.0, 1.0)).unsqueeze(0)
 
                     else:
                         u_h = keys_to_action.get(tuple(sorted(pressed_keys)), 0)
+                        u_h = set_action_keyboard(u_h)
+                        u_h = torch.from_numpy(u_h).unsqueeze(0)
 
                 elif human == "policy":
 
@@ -209,22 +221,26 @@ def play_hil_planner(
 
                 else:
                     # If using human data, then get the actions from the playback trajectory
+                    if exp_run_mode == "replay_traj" or human == "data" or robot == "data":
+                        n_iter = min(n_iter, actions.shape[0] - 1) # Needed to account finish the playback
+                    # else:
+                    #     assert n_iter < actions.shape[0], "Ran out of human actions from data."
                     u_h = actions[n_iter, :2]
+                    u_h = torch.from_numpy(u_h).unsqueeze(0)
 
-                u_h = torch.from_numpy(np.clip(u_h, -1.0, 1.0)).unsqueeze(0)
+                
+                # --------------------------------------------- GET ROBOT INPUTS -------------------------------------------- #
 
                 # -------------------------------------------- OBSERVATION PERIOD -------------------------------------------- #
 
                 # If we are in the observation period, then we just need to update the state history queue and get the next
                 # observation from the simulator by feeding the human input and robot input (which is from human data) to the simulator
 
-                if (n_iter <= mcfg.H + mcfg.skip) or (robot == "data"):
+                if (n_iter <= mcfg.H + mcfg.skip) or (exp_run_mode == "replay_traj"):
 
-                    if n_iter % mcfg.skip != 0:
+                    if (n_iter % mcfg.skip != 0) and exp_run_mode != "replay_traj":
                         n_iter += 1
                         continue
-
-                    # -------------------------------------------- GET ROBOT INPUTS -------------------------------------------- #
 
                     # Feed first H steps of state history into simulator
                     u_r = torch.from_numpy(actions[n_iter, :2]).unsqueeze(0)
@@ -236,7 +252,25 @@ def play_hil_planner(
                     u_queue = update_queue(u_queue, u_all)
 
                     # Update env with actions
+                    if exp_run_mode == "replay_traj":
+                        u_all = playback_trajectory["actions"][n_iter, :]
                     obs, reward, done, info = env.step(list(u_all.squeeze()))
+
+                    # Checks
+                    if env.done:
+                        if info["success"]:
+                            success = True
+                        else:
+                            success = False
+                        env.render(mode="human")
+                        running = False
+                        trajectory["states"].append(obs)
+                        if robot == "planner":
+                            trajectory["plan"].append(path)
+                        trajectory["actions"].append(u_all)
+                        trajectory["rewards"].append(reward)
+                        trajectory["fluency"].append(env)
+                        break
 
                     if display_past_states:
                         past_states.append(obs.tolist())
@@ -254,65 +288,67 @@ def play_hil_planner(
                 # from the simulator by feeding the human input and robot input from PID, which controls to waypoints planned by the model.
 
                 else:
+                    
+                    if robot == "planner":
+                        # -------------------------------------------- GET WAYPOINTS -------------------------------------------- #
 
-                    # -------------------------------------------- GET WAYPOINTS -------------------------------------------- #
+                        with torch.no_grad():
 
-                    with torch.no_grad():
+                            s_tf = tf2model(s_queue).repeat(mcfg.BSIZE, 1, 1)
+                            u = u_queue.repeat(mcfg.BSIZE, 1, 1).float()
+                            start_plan = time.time()
+                            sample = model.sample(
+                                s_tf, u, seq_len=mcfg.SEQ_LEN
+                            )
 
-                        s_tf = tf2model(s_queue).repeat(mcfg.BSIZE, 1, 1)
-                        u = u_queue.repeat(mcfg.BSIZE, 1, 1).float()
-                        start_plan = time.time()
-                        sample = model.sample(
-                            s_tf, u, seq_len=(mcfg.SEQ_LEN // mcfg.skip)
+                        waypoints = tf2sim(
+                            sample[:, :, :4],
+                            s_queue,
+                            (mcfg.H // mcfg.skip),
                         )
 
-                    waypoints = tf2sim(
-                        sample[:, (mcfg.H // mcfg.skip) :, :4],
-                        s_queue,
-                        (mcfg.H // mcfg.skip),
-                    )
+                        # Evaluate the rewards the batch of sampled trajectories using custom reward function
+                        eval = np.sum(
+                            np.array(
+                                [
+                                    compute_reward(waypoints[i, :, :3], env.goal, env.obstacles, interaction_forces=include_interaction_forces_in_rewards)
+                                    for i in range(waypoints.shape[0])
+                                ]
+                            ),
+                            -1,
+                        )
 
-                    # Evaluate the rewards the batch of sampled trajectories using custom reward function
-                    eval = np.sum(
-                        np.array(
-                            [
-                                compute_reward(waypoints[i, :, :3], env.goal, env.obstacles, interaction_forces=include_interaction_forces_in_rewards)
-                                for i in range(waypoints.shape[0])
-                            ]
-                        ),
-                        -1,
-                    )
+                        # Select the best trajectory
+                        best_traj = np.argmax(eval)
+                        path = waypoints[best_traj, :, :]
 
-                    # Select the best trajectory
-                    best_traj = np.argmax(eval)
-                    path = waypoints[best_traj, :, :]
+                        end_plan = time.time()
+                        delta_plan = end_plan - start_plan
+                        delta_plan_sum += delta_plan
+                        # print("Planning time for this step: ", delta_plan)
 
-                    end_plan = time.time()
-                    delta_plan = end_plan - start_plan
-                    delta_plan_sum += delta_plan
-                    print("Planning time for this step: ", delta_plan)
+                        if display_pred:
+                            env.update_prediction(path.tolist())
 
-                    if display_pred:
-                        env.update_prediction(path.tolist())
+                        # -------------------------------------------- GET ROBOT CONTROL -------------------------------------------- #
 
-                    # -------------------------------------------- GET ROBOT CONTROL -------------------------------------------- #
+                        pid_actions = pid_single_step(
+                            env,
+                            path[mcfg.skip, :4],
+                            kp=0.15,
+                            ki=0.0,
+                            kd=0.0,
+                            max_iter=40,
+                            dt=CONST_DT,
+                            eps=1e-2,
+                            u_h=u_h.squeeze().numpy(),
+                        )
+                        pid_actions /= np.linalg.norm(pid_actions)
 
-                    pid_actions = pid_single_step(
-                        env,
-                        path[mcfg.skip, :4],
-                        kp=0.15,
-                        ki=0.0,
-                        kd=0.0,
-                        max_iter=40,
-                        dt=CONST_DT,
-                        eps=1e-2,
-                        u_h=u_h.squeeze().numpy(),
-                    )
-                    pid_actions /= np.linalg.norm(pid_actions)
+                        u_r = torch.from_numpy(np.clip(pid_actions, -1.0, 1.0)).unsqueeze(0)
 
-                    u_r = torch.from_numpy(np.clip(pid_actions, -1.0, 1.0)).unsqueeze(0)
-
-                n_iter = min(n_iter, actions.shape[0] - 1)
+                    else:
+                        u_r = torch.from_numpy(actions[n_iter, :2]).unsqueeze(0)
 
                 u_all = torch.cat((u_r, u_h), dim=-1)
                 u_queue = update_queue(u_queue, u_all)
@@ -327,27 +363,24 @@ def play_hil_planner(
                 # Update obseravations for model
                 obs = torch.from_numpy(obs).float()
                 s_queue = update_queue(s_queue, obs.unsqueeze(0))
-
-                # Checks
-                if done:
-                    if env.success:
+                
+                trajectory["states"].append(obs)
+                if robot == "planner":
+                    trajectory["plan"].append(torch.tensor(path))
+                trajectory["actions"].append(u_all)
+                trajectory["rewards"].append(reward)
+                trajectory["fluency"].append(env.fluency)
+                if env.done:
+                    print(info["success"])
+                    env.reset()
+                    if info["success"]:
+                        print("SUCCESS")
                         success = True
                     else:
                         success = False
-
                     env.render(mode="human")
-                    running = False
-                    trajectory["states"].append(obs)
-                    trajectory["plan"].append(path)
-                    trajectory["actions"].append(u_all)
-                    trajectory["rewards"].append(reward)
-                    trajectory["fluency"].append(env)
+                    running = False    
                     break
-
-                trajectory["states"].append(obs)
-                trajectory["plan"].append(path)
-                trajectory["actions"].append(u_all)
-                trajectory["rewards"].append(reward)
 
                 next_game_tick += CONST_DT
                 loops += 1
@@ -356,8 +389,10 @@ def play_hil_planner(
                 continue
             else:
                 delta_plan_sum = delta_plan_sum / (loops)
-            print("Average planning time: ", delta_plan_sum)
+            print("Average planning time per planning loop: ", delta_plan_sum / n_iter)
             n_iter += 1
+            # if robot == "data" and human == "data":
+            #     n_iter = min(n_iter, actions.shape[0] - 1) # Needed to account finish the playback
 
             # Update display
             if not env.done:
@@ -367,7 +402,7 @@ def play_hil_planner(
                 # process pygame events
                 for event in pygame.event.get():
                     if event.type == pygame.KEYDOWN:
-                        if event.key in relevant_keys:
+                        if event.key in relevant_keys and human == "real" and env.control_type == "keyboard":
                             debug_print("REGISTERED KEY PRESS")
                             pressed_keys.append(event.key)
                         elif event.key == 27:
@@ -383,17 +418,19 @@ def play_hil_planner(
     print("Duration of run: ", duration)
     pygame.quit()
 
-    # Save trajectory
-    trajectory["states"] = torch.stack(trajectory["states"], dim=0).numpy()
-    if robot == "planner":
-        trajectory["plan"] = torch.stack(trajectory["plan"], dim=0).numpy()
-    trajectory["actions"] = torch.stack(trajectory["actions"], dim=0).numpy()
-    trajectory["rewards"] = torch.stack(trajectory["rewards"], dim=0).numpy()
-    assert info is not None, "Error: info is None"
-    trajectory["fluency"] = info["fluency"]
-    trajectory["success"] = success
-    trajectory["done"] = done
-    trajectory["n_iter"] = n_iter
-    trajectory["duration"] = duration
+    if exp_run_mode != "replay_traj":
+        # Save trajectory
+        trajectory["states"] = torch.stack(trajectory["states"], dim=0).numpy()
+        if robot == "planner":
+            trajectory["plan"] = torch.stack(trajectory["plan"], dim=0).numpy()
+        trajectory["actions"] = torch.stack(trajectory["actions"], dim=0).numpy()
+        trajectory["rewards"] = torch.stack(trajectory["rewards"], dim=0).numpy()
+        assert info is not None, "Error: info is None"
+        trajectory["fluency"] = info["fluency"]
+        trajectory["success"] = info["success"]
+        trajectory["done"] = done
+        trajectory["n_iter"] = n_iter
+        trajectory["duration"] = duration
 
     return trajectory, success, n_iter, duration
+    

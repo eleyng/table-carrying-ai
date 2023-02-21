@@ -460,7 +460,7 @@ class TableEnv(gym.Env):
     def _set_action(self, action):
         if self.control_type == "keyboard":
             return set_action_keyboard(action)
-        elif self.control_type == "joystick":
+        elif self.control_type in ["joystick", "data", "policy"]:
             return set_action_joystick(action)
 
     def step(
@@ -557,11 +557,13 @@ class TableEnv(gym.Env):
         # return self.observation, reward, self.done, info
 
         if self.success:
-            print("success", self.done, self.success, self.n_step, reward, self.inter_f)
+            print("Success.", self.done, self.success, self.n_step, reward, self.inter_f)
             self.completed_traj = self.data
             self.completed_traj_fluency = self.fluency
+            states = self.get_state()
             info["fluency"] = self.fluency
-            states = self.reset()
+            if self.run_mode == "demo":
+                _ = self.reset()
             return (
                 states,
                 torch.FloatTensor(np.array([reward,])),
@@ -569,12 +571,13 @@ class TableEnv(gym.Env):
                 info,
             )
         elif self.done:
-            print("done", self.done, self.success, self.n_step, reward, self.inter_f)
+            print("Collision.", self.done, self.success, self.n_step, reward, self.inter_f)
             self.completed_traj = self.data
             self.completed_traj_fluency = self.fluency
             states = self.get_state()
             info["fluency"] = self.fluency
-            self.reset()
+            if self.run_mode == "demo":
+                _ = self.reset()
             return (
                 states,
                 torch.FloatTensor(np.array([reward,])),
@@ -582,14 +585,15 @@ class TableEnv(gym.Env):
                 info,
             )
         else:
-            if self.n_step >= self.max_num_env_steps:
+            if self.n_step > self.max_num_env_steps:
                 self.done = True
-                print("done", self.done, self.success, self.n_step, reward, self.inter_f) 
+                print("Done due to step limit.", self.done, self.success, self.n_step, reward, self.inter_f) 
                 self.completed_traj = self.data
                 self.completed_traj_fluency = self.fluency
                 states = self.get_state()
                 info["fluency"] = self.fluency
-                self.reset()
+                if self.run_mode == "demo":
+                    _ = self.reset()
                 return (
                     states,
                     torch.FloatTensor(np.array([reward,])),
@@ -597,6 +601,7 @@ class TableEnv(gym.Env):
                     info,
                 )
             else:
+                info["fluency"] = self.fluency
                 return (
                     self.get_state(),
                     torch.FloatTensor(np.array([reward,])),

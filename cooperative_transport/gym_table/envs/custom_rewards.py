@@ -2,11 +2,10 @@ import numpy as np
 
 ## Define custom reward functions here
 def custom_reward_function(states, goal, obs, interaction_forces=None, vectorized=False):
-
+    # states should be an N x state_dim array
     assert (
         len(states.shape) == 2
-    ), "state shape mismatch for compute_reward. Expected (n, {0}), where n is the batch size you are evaluating. Got {1}".format(
-        states.shape[1],
+    ), "state shape mismatch for compute_reward. Expected (n, {0}), where n is the set of states you are evaluating. Got {1}".format(
         states.shape
     )
 

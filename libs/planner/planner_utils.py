@@ -134,14 +134,14 @@ def tf2model(state_data):
 
 
 def tf2sim(sample, init_state, H):
-    x = init_state[-1, 0] + torch.cumsum(sample[:, H:, 0], dim=0).detach().cpu().numpy()
+    x = init_state[-1, 0] + torch.cumsum(sample[:, H:, 0], dim=1).detach().cpu().numpy()
 
-    y = init_state[-1, 1] + torch.cumsum(sample[:, H:, 1], dim=0).detach().cpu().numpy()
+    y = init_state[-1, 1] + torch.cumsum(sample[:, H:, 1], dim=1).detach().cpu().numpy()
     cth = (
-        init_state[-1, 2] + torch.cumsum(sample[:, H:, 2], dim=0).detach().cpu().numpy()
+        init_state[-1, 2] + torch.cumsum(sample[:, H:, 2], dim=1).detach().cpu().numpy()
     )
     sth = (
-        init_state[-1, 3] + torch.cumsum(sample[:, H:, 3], dim=0).detach().cpu().numpy()
+        init_state[-1, 3] + torch.cumsum(sample[:, H:, 3], dim=1).detach().cpu().numpy()
     )
     # pdb.set_trace()
     x = np.expand_dims(x, axis=-1)

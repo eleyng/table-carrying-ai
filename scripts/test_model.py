@@ -1,3 +1,4 @@
+import argparse
 import random
 import torch
 import gym
@@ -24,12 +25,7 @@ from configs.robot.robot_planner_config import get_planner_args
 VERBOSE = False # Set to True to print debug info
 
 
-def main(sysargv):
-
-    exp_args = get_experiment_args()
-    print("Begin experiment in {} mode!".format(exp_args.run_mode))
-    print("Experiment name: ", exp_args.exp_name)
-
+def main(exp_args, exp_name):
     SEED = exp_args.seed
     torch.backends.cudnn.deterministic = True
     random.seed(SEED)
@@ -37,38 +33,18 @@ def main(sysargv):
     torch.cuda.manual_seed(SEED)
     np.random.seed(SEED)
     device = torch.device("cpu")
-    
-    # ------------------------ Robot Options ------------------------
-    # Comes from `--robot-mode` flag. Robot can be [planner | policy]
-    model = None
-    if sysargv[2] == "planner":
-        args_r = get_planner_args()
-        model = VRNN.load_from_checkpoint(
-            args_r.artifact_path,
-            # hparams=args_r,
-        )
-    elif sysargv[2] == "policy":
-        pass
-        # args_r = get_policy_args()
-        # TODO: Add BC policy
-        # model = VRNN.load_from_checkpoint(
-        #     args_r.artifact_path,
-        #     hparams=args_r,
-        # )
-    else:
-        assert model is not None, "Robot type not supported"
-    print("Robot {0} loaded from {1}: ".format(sysargv[2], args_r.artifact_path))
     model.eval()
     
     # ------------------------ Human Options ------------------------
     # Human play can be interactive, or come from data.
-    print("Human actions from {0}: ".format(exp_args.human_control))
+    print("Human actions from: {0}. ".format(exp_args.human_control))
     
     # ------------------------ Directories Setup ------------------------
     # Setup directories
     if not isdir(exp_args.results_dir):
         mkdir(exp_args.results_dir)
-    save_dir = join(exp_args.results_dir, exp_args.exp_name)
+    save_dir = join(exp_args.results_dir, exp_name)
+    print("Saving results to: {0}".format(save_dir))
     if not isdir(save_dir):
         mkdir(save_dir)
 
@@ -87,6 +63,9 @@ def main(sysargv):
     ]
 
     # ------------------------ Experiment Setup ------------------------
+    # Parameters for sampling
+    model.batch_size = exp_args.BSIZE
+    model.skip = exp_args.skip
 
     for f_idx in range(len(FILES)):
         f = FILES[f_idx]
@@ -96,12 +75,12 @@ def main(sysargv):
 
         env = gym.make(
             "cooperative_transport.gym_table:table-v0",
-            render_mode="gui",
+            render_mode=exp_args.render_mode,
             control=exp_args.human_control,
             map_config=exp_args.map_config,
             run_mode="eval",
             load_map=match[0],
-            run_name=exp_args.run_name,
+            run_name=exp_name,
             ep=exp_args.ep,
             dt=CONST_DT,
         )
@@ -110,12 +89,13 @@ def main(sysargv):
 
             trajectory, success, n_iter, duration = play_hil_planner(
                 env,
+                exp_run_mode=exp_args.run_mode,
                 human=exp_args.human_mode,
                 robot=exp_args.robot_mode,
                 model=model,
-                mcfg=args_r,
-                SEQ_LEN=args_r.SEQ_LEN,
-                H=args_r.H,
+                mcfg=exp_args,
+                SEQ_LEN=exp_args.SEQ_LEN,
+                H=exp_args.H,
                 playback_trajectory=dict(np.load(f)),
                 display_pred=exp_args.display_pred,
                 display_gt=exp_args.display_gt,
@@ -124,11 +104,11 @@ def main(sysargv):
             
             print("Run finished. Task succeeded: {0}. Num steps taken in env: {1}. Episode {2}.".format(success, n_iter, ep))
 
-            save_f = "eval_" + exp_args.run_mode + + "_seed-" + str(exp_args.seed) + "_R-" + \
-                exp_args.robot_mode + "_H-" + exp_args.human_mode + "_EP-" + str(exp_args.ep) + ".npz"
+            save_f = "eval_" + exp_args.run_mode + "_seed-" + str(exp_args.seed) + "_R-" + \
+                exp_args.robot_mode + "_H-" + exp_args.human_mode + "_" + ep
 
             np.savez(
-                join(exp_args.save_dir, save_f),
+                join(save_dir, save_f),
                 states=trajectory["states"],
                 plan=trajectory["plan"],
                 actions=trajectory["actions"],
@@ -144,12 +124,13 @@ def main(sysargv):
 
             trajectory, success, n_iter, duration = play_hil_planner(
                 env,
+                exp_run_mode=exp_args.run_mode,
                 human="data",
                 robot="data",
                 model=model,
-                mcfg=args_r,
-                SEQ_LEN=args_r.SEQ_LEN,
-                H=args_r.H,
+                mcfg=exp_args,
+                SEQ_LEN=exp_args.SEQ_LEN,
+                H=exp_args.H,
                 playback_trajectory=dict(np.load(f)),
                 display_pred=exp_args.display_pred,
                 display_gt=exp_args.display_gt,
@@ -158,8 +139,60 @@ def main(sysargv):
 
             print("Run finished. Task succeeded: {0}. Num steps taken in env: {1}. Episode {2}.".format(success, n_iter, ep))
 
-        ep += 1
 
-if __name__ == "__main__":
+if __name__ == "__main__":  
+    parser = argparse.ArgumentParser("Table Carrying Experiments.")
 
-    main(sys.argv)
+    exp_args = parser.add_argument_group("Experiment Settings")
+    get_experiment_args(exp_args)
+    assert sys.argv[2] in ["replay_traj", "hil"], "Run mode not supported"
+    if sys.argv[2] == "replay_traj":
+        assert sys.argv[4] == 'data' and sys.argv[6] == "data", "Replay traj mode requires --human-mode and --robot-mode to be data"
+
+    # ------------------------ Robot Options ------------------------
+    # Comes from `--robot-mode` flag. Robot can be [planner | policy]
+    model = None
+    if sys.argv[4] == "planner" or sys.argv[4] == "data":
+        get_planner_args(exp_args)
+        exp_args = parser.parse_args()
+        model = VRNN.load_from_checkpoint(
+            exp_args.artifact_path,
+        )
+    elif sys.argv[4] == "policy":
+        pass
+        # get_policy_args(exp_args)
+        # exp_args = parser.parse_args()
+        # TODO: Add BC policy
+        # model = BCRNNGMM.load_from_checkpoint(
+        #     exp_args.artifact_path,
+        # )
+    else:
+        assert model is not None, "Robot type not supported"
+
+    # Check valid experiment modes
+    """ If HIL mode, these are the possible combinations:
+        - Human real + Robot planner
+        - Human real + Robot policy
+        - Human real + Robot data
+        - Human data + Robot planner
+        - Human data + Robot policy
+        ** Notes: 
+            - if human real, then indicate control type [keyboard | joystick].
+            - human/robot policy is currently not supported by this version    
+
+
+        If replay_traj mode, these are the possible combinations:
+        - Human data + Robot data
+        
+    """
+
+    print("Begin experiment in {} mode!".format(exp_args.run_mode))
+
+    if exp_args.run_mode == "hil":
+        assert not (exp_args.robot_mode == "data" and exp_args.human_mode == "data"), "HIL mode require that both human and robot are not from data. Use replay_traj mode instead."
+        exp_name = "eval_" + exp_args.run_mode + "_seed-" + str(exp_args.seed) + "_R-" + \
+            exp_args.robot_mode + "_H-" + exp_args.human_mode
+        print("Experiment name: ", exp_name)
+
+    print("Robot {0} loaded from {1}: ".format(exp_args.robot_mode, exp_args.artifact_path))  
+    main(exp_args, exp_name)
