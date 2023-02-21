@@ -34,11 +34,41 @@ python tests/test_gym_table.py
 ```
 
 ### Note on interfaces:
-For interaction, you can choose keyboard (discrete actions) or joystick (continuous actions) modes. For joystick interface, any USB peripheral with stick control (e.g. PS5 controller) works. You can test the controller is recognized by pygame using the following script:
+For interaction, you can choose keyboard (discrete actions) or joystick (continuous actions) modes. For joystick interface, any USB peripheral with stick control (e.g. PS5 controller) works. You can test whether the controller is recognized by pygame using the following script:
 
 ```
 python tests/test_joystick.py
 ```
+
+## Quickstart
+
+### Dataset and trained models download
+Download human-human demonstration dataset and trained models, collected for [1]: [Link](https://drive.google.com/drive/folders/1RqmUrl0xPPURRrGFpoC3pgIm-NmgyKV6?usp=share_link). Both folders ("trained_models", "datasets") should be in the base directory. Note that an optional `results` directory from a sample evaluation with human recorded data and robot planner is included for plotting in this Quickstart section.
+
+### Install robot planner (Required! if running robot in planner mode)
+Install the cooperative planner from [1] as a submodule in the `algo/planners` folder as instructed [here](https://github.com/eleyng/cooperative_planner). 
+
+### Run trained planners with human data playback
+After downloading the data and trained models, you can now setup a few experiments:
+- To see the robot planner playing with a collected human trajectory, run:  
+`python scripts/test_model.py --run-mode hil --robot-mode planner --human-mode data`
+- To interactively play with the robot planner, run:  
+`python scripts/test_model.py --run-mode hil --robot-mode planner --human-mode real --human-control [keyboard | joystick]`
+- To playback some data, run:  
+`python scripts/test_model.py --run-mode replay_traj --robot-mode data --human-mode data`
+- To see the robot planner planning actions for both agents, run:
+`python scripts/test_model.py --run-mode coplanning --robot-mode planner --human-mode planner`
+
+Note that the planner requires a ground truth trajectory's first H steps of data to be fed into the model (default: H = 30 , which is ~1 sec given default FPS = 30). The ground truth trajectory is also used to set the configuration (obstacles, initial pose, goal location) for the run, and helps us compare the planned trajectories to the ground truth trajectories.
+
+To set the path for various test set ground truth trajectories:
+- For the test holdout dataset, set the `--data-dir` flag to `datasets/table-demos/table-demos_traj/test/test_holdout` (currently default).  
+- For the unseen map dataset, set the  `--data-dir` flag to `datasets/table-demos/table-demos_traj/test/unseen_map`.
+
+### Visualizing
+To visualize your human-in-the-loop trials (or other experiment), run:  
+`python scripts/plot_traj.py --path-to-traj [path to .npz traj from experiment] --path-to-gt [path to .npz ground truth traj] --path-to-map [path to .npz map config file collected from the same run as the ground truth traj]`  
+Add the `--video` flag if you'd like to convert the images into a video!
 
 ## Custom Env Structure Overview
 
@@ -77,7 +107,20 @@ There are several things you can do with this environment, by running any of the
     ├── data_playback.py : render a saved trajectory with pygame
     ├── play.py : collect demonstrations with two humans (**interactive**)
     ├── test_model.py : can play in: 1) (**interactive**) one-player (human) w/ robot, 2) robot only (**See "Dataset and Trained Models" section**).
-    └── visualize.py : plot a saved trajectory and save as image  
+    └── plot_traj.py : plot a saved trajectory and save as sequence of images, and option to turn images to video
+```
+
+All configurations are stored in the `configs` dir.
+
+```
+└── configs/
+    ├── dataset_processing_params.yml : yaml for demonstration data collection (use with scripts/play.py).
+    ├── experiment/
+    │    └── experiment_config.py : main-level arguments for scripts/test_model.py. 
+    └── robot/
+        ├── robot_planner_config.py: arguments for robot planner if it is used in scripts/test_model.py.
+        └── robot_policy_config.py: arguments for robot policy if it is used in scripts/test_model.py.
+        
 ```
 
 ## Dataset Options
@@ -96,14 +139,14 @@ The trajectory data is collected as a .pkl, and you can run processing on it to 
 
 ### Downloading Dataset from [1]
 
-Download human-human demonstration dataset and trained models, collected for [1]: [Link](https://drive.google.com/drive/folders/1RqmUrl0xPPURRrGFpoC3pgIm-NmgyKV6?usp=share_link). Both folders ("trained_models", "datasets") should be in the base directory. Note, the data for training the model in [1] has been processed into a different format than the properties set in the data processing script [here](https://github.com/eleyng/table-carrying-ai/blob/main/scripts/process_data.py).
+See dataset download instructions under Quickstart section. Note, the data for training the model in [1] has been processed into a different format than the properties set in the data processing script [here](https://github.com/eleyng/table-carrying-ai/blob/main/scripts/process_data.py).
 
 ## Running Trained Models with Human-in-the-Loop
 
 To evaluate your model, you can load it and play with it in real time as human teleoperator. To do so: 
 1. Download trained models or create a dir `trained_models` and upload your model in this format: `trained_models/{name of model}/{name of check point to load}.ckpt`.
 2. Run `python scripts/test_model.py` using various flags (see file for details). You can run the model autonomously, or run with a human in the loop.
-3. Runs will be saved as a .npz file. You can visualize them via `scipts/visualize_trajectory.py`.
+3. Runs will be saved as a .npz file. You can visualize them via `scipts/plot_traj.py`.
 
 ## Further Use Cases
 
@@ -122,12 +165,8 @@ If you would like to use our environment, please cite us:
 }
 ```
 
-## TODO:
-- test scripts
-- test download instructions 
-
 ## Upcoming features:
-- add human bc policy + update test script
+- add human bc policy
 
 ## Contact  
 For issues, comments, suggestions, or anything else, please contact [Eley Ng](https://eleyng.github.io) at eleyng@stanford.edu.
