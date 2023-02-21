@@ -9,9 +9,9 @@ A *continuous state-action* gym environment for human-robot cooperative table-ca
   
 ## About
 
-This is a continuous state-action custom environment for a two-agent cooperative carrying task. Possible configurations are human-human, human-robot, and robot-robot. It is intended to be a benchmark environment for human-robot cooperative physical tasks. Cooperative carrying is also a task suitable for measuring interaction metrics, such as interaction forces (when the two agents are compressing or stretching the table in dissent), or idle time (when one agent stops moving, perhaps as a signal to the other to take over leadership or allow navigation around an obstacle). For cooperative tasks, such metrics are important to capture to determine the quality of interaction. 
+Diverse behaviors remain a key barrier to human-robot cooperation. This is a continuous state-action custom environment for a two-agent task, intended to be a benchmark environment for human-robot cooperative physical tasks. Cooperative carrying is also suitable for measuring interaction metrics, e.g. interaction forces (when the two agents are compressing or stretching the table in dissent), idle time (when one agent stops moving, perhaps as a signal to the other to take over leadership or allow navigation around an obstacle), etc. For cooperative tasks, such metrics are important to capture to determine the quality of interaction. 
 
-The objective is to carry the table from start to goal while avoiding obstacles. Each agent is physically constrained to the table while moving it. Rewards can be customized to achieve task success (reaching goal without hitting obstacles), but also other cooperative objectives (minimal interaction forces, etc. for *fluency*).
+The objective is to carry the table from start to goal while avoiding obstacles. Each agent is physically constrained to the table while moving it, but can exert a force on the side they are carrying it. Rewards can be customized to achieve task success (reaching goal without hitting obstacles), but also other cooperative objectives (minimal interaction forces, etc. for *fluency*).
 
 The main branch environment is used in the 2023 ICRA paper *[It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying](https://arxiv.org/abs/2209.12890)* [1]. Link to [video](https://www.youtube.com/watch?v=CqWh-yWOgeA).
 
@@ -50,14 +50,18 @@ Install the cooperative planner from [1] as a submodule in the `algo/planners` f
 
 ### Run trained planners with human data playback
 After downloading the data and trained models, you can now setup a few experiments:
+
 - To see the robot planner playing with a collected human trajectory, run:  
 `python scripts/test_model.py --run-mode hil --robot-mode planner --human-mode data`
+
 - To interactively play with the robot planner, run:  
 `python scripts/test_model.py --run-mode hil --robot-mode planner --human-mode real --human-control [keyboard | joystick]`
+For keyboard control, **use 'WASD'** (not arrow keys). **Player 1 is robot (blue triangle), player 2 is the human (orange circle).**  
+
 - To playback some data, run:  
 `python scripts/test_model.py --run-mode replay_traj --robot-mode data --human-mode data`
 - To see the robot planner planning actions for both agents, run:
-`python scripts/test_model.py --run-mode coplanning --robot-mode planner --human-mode planner`
+`python scripts/test_model.py --run-mode coplanning --robot-mode planner --human-mode planner`  
 
 Note that the planner requires a ground truth trajectory's first H steps of data to be fed into the model (default: H = 30 , which is ~1 sec given default FPS = 30). The ground truth trajectory is also used to set the configuration (obstacles, initial pose, goal location) for the run, and helps us compare the planned trajectories to the ground truth trajectories.
 
