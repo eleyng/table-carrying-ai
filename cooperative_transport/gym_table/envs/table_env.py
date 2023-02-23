@@ -358,9 +358,9 @@ class TableEnv(gym.Env):
             dt:                 (float) time step
             state_dim:          (int) dimension of state
             max_num_obstacles:  (int) maximum number of obstacles
-            max_num_env_steps:  (int) maximum number of environment steps
+            max_num_env_steps:  (int) maximum number of environment steps per episode
         """
-        self.max_num_env_steps = max_num_env_steps
+        self.ep_length = max_num_env_steps
         self.state_dim = state_dim
         self.render_mode = render_mode
         self.dist2wall_list = None
@@ -497,7 +497,7 @@ class TableEnv(gym.Env):
         self.observation = self.get_state()
         self.done = self.check_collision()
         self.compute_fluency(action)
-        reward = self.compute_reward(table_state, vectorized=self.vectorized)
+        reward = self.compute_reward(np.expand_dims(self.observation, axis=0), vectorized=self.vectorized, collision=self.done, success=self.success, u_r=f1, u_h=f2)
         self.cumulative_reward += reward
         debug_print(
             "Done? ",
@@ -541,7 +541,7 @@ class TableEnv(gym.Env):
         # return self.observation, reward, self.done, info
 
         if self.success:
-            print("Success.", self.done, self.success, self.n_step, reward, self.inter_f)
+            print("Success. ", "Done: ", self.done, ", Success: ", self.success, ", Steps: ", self.n_step, ", Cumulative reward: ", self.cumulative_reward)
             self.completed_traj = self.data
             self.completed_traj_fluency = self.fluency
             states = self.get_state()
@@ -555,7 +555,7 @@ class TableEnv(gym.Env):
                 info,
             )
         elif self.done:
-            print("Collision.", self.done, self.success, self.n_step, reward, self.inter_f)
+            print("Collision. ", "Done: ", self.done, ", Success: ", self.success, ", Steps: ", self.n_step, ", Cumulative reward: ", self.cumulative_reward)
             self.completed_traj = self.data
             self.completed_traj_fluency = self.fluency
             states = self.get_state()
@@ -565,13 +565,12 @@ class TableEnv(gym.Env):
             return (
                 states,
                 torch.FloatTensor(np.array([reward,])),
-                torch.FloatTensor(np.array([[float(False)],])),
+                torch.FloatTensor(np.array([[float(True)],])),
                 info,
             )
         else:
-            if self.n_step > self.max_num_env_steps:
-                self.done = True
-                print("Done due to step limit.", self.done, self.success, self.n_step, reward, self.inter_f) 
+            if self.n_step > self.ep_length:
+                print("Break due to step limit. ", "Done: ", False, ", Success: ", self.success, ", Steps: ", self.n_step, ", Cumulative reward: ", self.cumulative_reward)
                 self.completed_traj = self.data
                 self.completed_traj_fluency = self.fluency
                 states = self.get_state()
@@ -581,7 +580,7 @@ class TableEnv(gym.Env):
                 return (
                     states,
                     torch.FloatTensor(np.array([reward,])),
-                    torch.FloatTensor(np.array([[float(False)],])),
+                    torch.FloatTensor(np.array([[float(True)],])),
                     info,
                 )
             else:
@@ -689,8 +688,8 @@ class TableEnv(gym.Env):
 
         self.dist2wall = np.min(self.dist2wall_list, axis=1, keepdims=True)
 
-    def compute_reward(self, states, interaction_forces=None, vectorized=False) -> float:
-        reward = custom_reward_function(states, self.goal, self.obstacles, interaction_forces=self.include_interaction_forces_in_rewards, vectorized=vectorized)
+    def compute_reward(self, states, interaction_forces=None, vectorized=False, collision=None, success=None, u_r=None, u_h=None) -> float:
+        reward = custom_reward_function(states, self.goal, self.obstacles, interaction_forces=self.include_interaction_forces_in_rewards, vectorized=vectorized, collision=collision, success=success, u_r=u_r, u_h=u_h)
         return reward
 
     def check_collision(self) -> bool:

@@ -1,11 +1,11 @@
 import numpy as np
 
-from cooperative_transport.gym_table.envs.utils import CONST_DT, L
+from cooperative_transport.gym_table.envs.utils import CONST_DT, L, WINDOW_H, WINDOW_W
 from libs.planner.planner_utils import pid_single_step
 
 
 ## Define custom reward functions here
-def custom_reward_function(states, goal, obs, interaction_forces=None, vectorized=False, env=None, skip=5, u_h=None):
+def custom_reward_function(states, goal, obs, interaction_forces=None, vectorized=False, env=None, skip=5, u_r=None, u_h=None, collision=None, success=None):
     # states should be an N x state_dim array
     assert (
         len(states.shape) == 2
@@ -20,17 +20,22 @@ def custom_reward_function(states, goal, obs, interaction_forces=None, vectorize
     # slack reward
     reward += -0.1
 
+    if collision is not None:
+        if collision:
+            reward += -100.0
+
+    if success is not None:
+        if success:
+            reward += 100.0
+
     dg = np.linalg.norm(states[:, :2] - goal, axis=1)
 
-    a = 0.98
-    const = 100.0
-    r_g = 10.0 * np.power(a, dg - const)
+    sigma_g = 200
+    r_g = np.exp(-np.power(dg, 2) / (2 * sigma_g ** 2))
     reward += r_g
 
     r_obs = np.zeros(n)
-    b = -8.0
-    c = 0.9
-    const = 150.0
+    sigma_o = 50
 
     num_obstacles = obs.shape[0]
     if states is not None:
@@ -45,15 +50,18 @@ def custom_reward_function(states, goal, obs, interaction_forces=None, vectorize
     # negative rewards for getting close to wall
     for i in range(num_obstacles):
         d = d2obs_lst[i]
-        if d.any() < const:
-            r_obs += b * np.power(c, d - const)
+        r_obs += - np.exp(-np.power(d, 2) / (2 * sigma_o ** 2))
+
+    r_obs += - np.exp(-np.power((states[:, 0] - 0), 2) / (2 * sigma_o ** 2))
+    r_obs += - np.exp(-np.power((states[:, 0] - WINDOW_W), 2) / (2 * sigma_o ** 2))
+    r_obs += - np.exp(-np.power((states[:, 1] - 0), 2) / (2 * sigma_o ** 2))
+    r_obs += - np.exp(-np.power((states[:, 1] - WINDOW_H), 2) / (2 * sigma_o ** 2))
 
     reward += r_obs
 
     if interaction_forces is not None:
         if states.shape[0] == 1:
-            interaction_forces = 0 #FIXME: hack to avoid error when running in env withtout planning
-            pass
+            interaction_forces = compute_interaction_forces(states[0, :4], u_r, u_h)
         else:
             pid_actions = pid_single_step(
                                 env,
@@ -68,9 +76,10 @@ def custom_reward_function(states, goal, obs, interaction_forces=None, vectorize
                             )
             pid_actions /= np.linalg.norm(pid_actions)
             interaction_forces = compute_interaction_forces(states[skip, :4], pid_actions, u_h.detach().numpy().squeeze())
-            reward += interaction_forces_reward(interaction_forces)
+    reward += interaction_forces_reward(interaction_forces)
 
     if vectorized:
+        print("true")
         return reward
     else:
         return reward[0]
@@ -78,7 +87,7 @@ def custom_reward_function(states, goal, obs, interaction_forces=None, vectorize
 
 def interaction_forces_reward(interaction_forces):
     # interaction forces penalty : penalize as interaction forces stray from zero
-    penalty = 0.5 * (interaction_forces ** 2)
+    penalty = 0.5 * (interaction_forces / 1000 ** 2)
 
     return -penalty
 
