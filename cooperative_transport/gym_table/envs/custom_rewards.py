@@ -36,7 +36,7 @@ def custom_reward_function(states, goal, obs, env=None, vectorized=False, intera
 
     dg = np.linalg.norm(states[:, :2] - goal, axis=1)
 
-    sigma_g = 200
+    sigma_g = 300
     r_g = np.exp(-np.power(dg, 2) / (2 * sigma_g ** 2))
     reward += r_g
 

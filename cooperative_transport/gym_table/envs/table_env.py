@@ -449,7 +449,7 @@ class TableEnv(gym.Env):
 
     def step(
         self, action: List[np.ndarray]
-    ) -> Tuple[np.ndarray, float, bool, Dict[str, Union[bool, float]]]:
+    ) -> Tuple[np.ndarray, np.ndarray, bool, Dict[str, Union[bool, float]]]:
         """Step the environment forward.
 
         Parameters
@@ -461,12 +461,12 @@ class TableEnv(gym.Env):
         -------
         observation : np.ndarray, shape=(self.state_dim, )
             Observations. See get_state() for details.
-        reward : float
-            Reward at this step.
+        reward : np.ndarray, shape=(N, )
+            Reward at this step. If N != 1, then reward is a vector of rewards for a sequence or batch.
         done : bool
             Boolean indicating whether the episode satisfies an end condition.
-        info : Dict[str, Union[bool, float]]
-            Information about the run. For now, contains the reward and done bool.
+        info : Dict[int, str, float, bool, bool, float]
+            Information about the step: n_step (int), reward float, done bool, success bool, interaction force float.
         """
         self.n_step += 1
         debug_print("dt in step: ", self.delta_t)
