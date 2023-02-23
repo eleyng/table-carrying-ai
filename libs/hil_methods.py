@@ -17,7 +17,16 @@ from libs.planner.planner_utils import (pid_single_step, tf2model, tf2sim,
 
 
 def compute_reward(
-    states, goal, obs, include_interaction_forces_in_rewards=False, interaction_forces=None, vectorized=True, env=None, u_h=None
+    states,
+    goal,
+    obs, 
+    env=None,
+    vectorized=False, 
+    interaction_forces=None, 
+    u_r=None, 
+    u_h=None, 
+    collision=None, 
+    success=None, 
 ) -> float:
     """
     Compute reward for the given state and goal.
@@ -32,12 +41,12 @@ def compute_reward(
         vectorized (bool): Whether to vectorize the reward computation. 
                 In inference, this should be True since we want to sample from the model.
     """
-    if include_interaction_forces_in_rewards:
+    if env.include_interaction_forces_in_rewards:
         reward = custom_reward_function(
             states, goal, obs, interaction_forces=interaction_forces, vectorized=True, env=env, u_h=u_h
         )
     else:
-        reward = custom_reward_function(states, goal, obs, vectorized=True)
+        reward = custom_reward_function(states, goal, obs, vectorized=True, env=env, u_h=u_h)
     return reward
 
 def play_hil_planner(
@@ -275,9 +284,9 @@ def play_hil_planner(
                         running = False
                         trajectory["states"].append(obs)
                         if robot == "planner":
-                            trajectory["plan"].append(path)
+                            trajectory["plan"].append(torch.tensor(None))
                         trajectory["actions"].append(u_all)
-                        trajectory["rewards"].append(reward)
+                        trajectory["rewards"].append(torch.tensor(reward))
                         trajectory["fluency"].append(env)
                         break
 
@@ -322,9 +331,9 @@ def play_hil_planner(
                                 [
                                     compute_reward(
                                         waypoints[i, :, :4],
-                                        env.goal, env.obstacles,
-                                        include_interaction_forces_in_rewards=include_interaction_forces_in_rewards,
-                                        interaction_forces=env.inter_f,
+                                        env.goal, 
+                                        env.obstacles,
+                                        interaction_forces=include_interaction_forces_in_rewards,
                                         env=env,
                                         u_h=u_h
                                     )
@@ -388,7 +397,7 @@ def play_hil_planner(
                 if robot == "planner":
                     trajectory["plan"].append(torch.tensor(path))
                 trajectory["actions"].append(u_all)
-                trajectory["rewards"].append(reward)
+                trajectory["rewards"].append(torch.tensor(reward))
                 trajectory["fluency"].append(env.fluency)
                 if env.done:
                     env.reset()
@@ -444,7 +453,7 @@ def play_hil_planner(
         assert info is not None, "Error: info is None"
         trajectory["fluency"] = info["fluency"]
         trajectory["success"] = info["success"]
-        trajectory["done"] = done
+        trajectory["done"] = torch.FloatTensor(np.array([[float(done)],]))
         trajectory["n_iter"] = n_iter
         trajectory["duration"] = duration
 

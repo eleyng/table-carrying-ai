@@ -5,7 +5,7 @@ from libs.planner.planner_utils import pid_single_step
 
 
 ## Define custom reward functions here
-def custom_reward_function(states, goal, obs, interaction_forces=None, vectorized=False, env=None, skip=5, u_r=None, u_h=None, collision=None, success=None):
+def custom_reward_function(states, goal, obs, env=None, vectorized=False, interaction_forces=False, skip=5, u_r=None, u_h=None, collision=None, success=None):
     # states should be an N x state_dim array
     assert (
         len(states.shape) == 2
@@ -20,13 +20,19 @@ def custom_reward_function(states, goal, obs, interaction_forces=None, vectorize
     # slack reward
     reward += -0.1
 
-    if collision is not None:
-        if collision:
-            reward += -100.0
-
-    if success is not None:
-        if success:
-            reward += 100.0
+    # if collision is None or success is None:
+    #     assert env is not None, "env parameter cannot be None if collision is not provided"
+    #     angle = np.arctan2(states[:, 3], states[:, 2])
+    #     check_states = np.stack(np.array([states[:, 0], states[:, 1], angle]), axis=1)
+    #     collision_and_success = np.array([env.mp_check_collision_and_success(check_states[i, :]) for i in range(n)])
+    #     for check in range(n):
+    #         reward[check] += -100.0 if collision_and_success[check, 0] else 0.0
+    #         reward[check] += 100.0 if collision_and_success[check, 1] else 0.0
+    # else:
+    #     if collision:
+    #         reward += -100.0
+    #     if success:
+    #         reward += 100.0
 
     dg = np.linalg.norm(states[:, :2] - goal, axis=1)
 
@@ -59,7 +65,7 @@ def custom_reward_function(states, goal, obs, interaction_forces=None, vectorize
 
     reward += r_obs
 
-    if interaction_forces is not None:
+    if interaction_forces:
         if states.shape[0] == 1:
             interaction_forces = compute_interaction_forces(states[0, :4], u_r, u_h)
         else:
@@ -76,13 +82,12 @@ def custom_reward_function(states, goal, obs, interaction_forces=None, vectorize
                             )
             pid_actions /= np.linalg.norm(pid_actions)
             interaction_forces = compute_interaction_forces(states[skip, :4], pid_actions, u_h.detach().numpy().squeeze())
-    reward += interaction_forces_reward(interaction_forces)
+        reward += interaction_forces_reward(interaction_forces)
 
-    if vectorized:
-        print("true")
-        return reward
-    else:
+    if not vectorized:
         return reward[0]
+    else:
+        return reward
 
 
 def interaction_forces_reward(interaction_forces):

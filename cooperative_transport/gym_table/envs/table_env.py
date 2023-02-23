@@ -550,8 +550,8 @@ class TableEnv(gym.Env):
                 _ = self.reset()
             return (
                 states,
-                torch.FloatTensor(np.array([reward,])),
-                torch.FloatTensor(np.array([[True],])),
+                reward,
+                True,
                 info,
             )
         elif self.done:
@@ -564,8 +564,8 @@ class TableEnv(gym.Env):
                 _ = self.reset()
             return (
                 states,
-                torch.FloatTensor(np.array([reward,])),
-                torch.FloatTensor(np.array([[float(True)],])),
+                reward,
+                True,
                 info,
             )
         else:
@@ -579,16 +579,16 @@ class TableEnv(gym.Env):
                     _ = self.reset()
                 return (
                     states,
-                    torch.FloatTensor(np.array([reward,])),
-                    torch.FloatTensor(np.array([[float(True)],])),
+                    reward,
+                    True,
                     info,
                 )
             else:
                 info["fluency"] = self.fluency
                 return (
                     self.get_state(),
-                    torch.FloatTensor(np.array([reward,])),
-                    torch.FloatTensor(np.array([[float(False)],])),
+                    reward,
+                    False,
                     info,
                 )
 
@@ -783,13 +783,15 @@ class TableEnv(gym.Env):
 
         return self.get_state()
 
-    def mp_check_collision(self, state) -> bool:
-        """Check for collisions.
+    def mp_check_collision_and_success(self, state) -> bool:
+        """Check for collisions and success.
 
         Returns
         -------
         collided : Boolean
             Whether the table has collided with the obstacles
+        success : Boolean
+            Whether the table has reached the target
         """
         # set table position
         self.table.x = state[0]
@@ -797,7 +799,7 @@ class TableEnv(gym.Env):
         self.table.angle = state[2]
         # update sprite
         self.table.image = pygame.transform.rotate(
-            self.table.original_img, math.degrees(self.table.angle)
+            self.table.original_img, np.degrees(self.table.angle)
         )
         self.table.rect = self.table.image.get_rect(center=(self.table.x, self.table.y))
         self.table.mask = pygame.mask.from_surface(self.table.image)
@@ -806,14 +808,36 @@ class TableEnv(gym.Env):
             self.table, self.done_list, False, pygame.sprite.collide_mask
         )
 
+        collision = False
+        success = False
+        
         if any(hit_list):
-            if not any(
+            
+            collision = True
+            if any(
                 pygame.sprite.spritecollide(
                     self.table, [self.target], False, pygame.sprite.collide_mask
                 )
             ):
-                return True
-        return False
+                success = True
+                debug_print("HIT TARGET")
+            else:
+                debug_print("HIT OBSTACLE")
+        else:
+            # wall collision
+            if not self.screen.get_rect().contains(self.table) \
+                or self.table.rect.left < 0 \
+                or self.table.rect.right > WINDOW_W \
+                or self.table.rect.top < 0 \
+                or self.table.rect.bottom > WINDOW_H:
+
+                collision = True
+                debug_print("HIT WALL")
+
+        return collision, success
+    
+    
+    
 
     @staticmethod
     def standardize(self, ins, mean, std):
