@@ -1,7 +1,8 @@
-import yaml
-import pygame
 import math
+
 import numpy as np
+import pygame
+import yaml
 
 VERBOSE = False  # Set to True to print debug info
 

@@ -1,17 +1,14 @@
-import gym
-import pygame
-import time
 import argparse
+import time
+
+import gym
 import numpy as np
+import pygame
 
 import cooperative_transport.gym_table.envs.utils as utils
-from cooperative_transport.gym_table.envs.utils import (
-    FPS,
-    CONST_DT,
-    MAX_FRAMESKIP,
-    debug_print,
-)
-
+from cooperative_transport.gym_table.envs.utils import (CONST_DT, FPS,
+                                                        MAX_FRAMESKIP,
+                                                        debug_print)
 
 VERBOSE = False  # Set to True to print debug info
 

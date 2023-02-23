@@ -1,12 +1,7 @@
-import torch
 import numpy as np
-from cooperative_transport.gym_table.envs.utils import (
-    b,
-    I,
-    L,
-    d,
-    CONST_DT,
-)
+import torch
+
+from cooperative_transport.gym_table.envs.utils import CONST_DT, L
 
 """ For planner used in Ng, et al. Learning to Plan for Human-Robot Cooperative Carrying. (ICRA 2023)."""
 

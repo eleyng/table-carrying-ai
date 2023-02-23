@@ -1,13 +1,12 @@
-import numpy as np
-from scipy import signal
 import pickle
 from os import listdir, mkdir
-from os.path import join, isfile, isdir
+from os.path import isdir, isfile, join
+
+import numpy as np
+from scipy import signal
+
 from cooperative_transport.gym_table.envs.utils import (
-    load_cfg,
-    get_idx_repeats_of_len_n,
-    FPS,
-)
+    FPS, get_idx_repeats_of_len_n, load_cfg)
 
 yaml_filepath = join("configs/dataset_processing_params.yml")
 cfg = load_cfg(yaml_filepath)

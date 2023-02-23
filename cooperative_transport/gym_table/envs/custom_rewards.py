@@ -1,6 +1,8 @@
 import numpy as np
+
+from cooperative_transport.gym_table.envs.utils import CONST_DT, L
 from libs.planner.planner_utils import pid_single_step
-from cooperative_transport.gym_table.envs.utils import L, CONST_DT
+
 
 ## Define custom reward functions here
 def custom_reward_function(states, goal, obs, interaction_forces=None, vectorized=False, env=None, skip=5, u_h=None):
@@ -26,9 +28,9 @@ def custom_reward_function(states, goal, obs, interaction_forces=None, vectorize
     reward += r_g
 
     r_obs = np.zeros(n)
-    b = -100.0
-    c = 0.98
-    const = 200.0
+    b = -8.0
+    c = 0.9
+    const = 150.0
 
     num_obstacles = obs.shape[0]
     if states is not None:

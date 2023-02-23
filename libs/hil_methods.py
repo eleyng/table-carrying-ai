@@ -1,25 +1,20 @@
-import torch
 import time
-import pygame
-import numpy as np
-import sys
 
-from cooperative_transport.gym_table.envs.custom_rewards import custom_reward_function
-from cooperative_transport.gym_table.envs.utils import (
-    init_joystick,
-    debug_print,
-    FPS,
-    CONST_DT,
-    MAX_FRAMESKIP,
-    get_keys_to_action,
-    set_action_keyboard,
-)
-from libs.planner.planner_utils import (
-    pid_single_step,
-    update_queue,
-    tf2model,
-    tf2sim,
-)
+import numpy as np
+import pygame
+import torch
+
+from cooperative_transport.gym_table.envs.custom_rewards import \
+    custom_reward_function
+from cooperative_transport.gym_table.envs.utils import (CONST_DT, FPS,
+                                                        MAX_FRAMESKIP,
+                                                        debug_print,
+                                                        get_keys_to_action,
+                                                        init_joystick,
+                                                        set_action_keyboard)
+from libs.planner.planner_utils import (pid_single_step, tf2model, tf2sim,
+                                        update_queue)
+
 
 def compute_reward(
     states, goal, obs, include_interaction_forces_in_rewards=False, interaction_forces=None, vectorized=True, env=None, u_h=None
@@ -235,8 +230,8 @@ def play_hil_planner(
 
                 else:
                     # If using human data, then get the actions from the playback trajectory
-                    if exp_run_mode == "replay_traj" or human == "data" or robot == "data":
-                        n_iter = min(n_iter, playback_trajectory["actions"].shape[0] - 1) # Needed to account finish the playback
+                    assert human == "data", "human arg must be from 'data' if not 'real', 'planner', or 'policy'"
+                    n_iter = min(n_iter, playback_trajectory["actions"].shape[0] - 1) # Needed to account finish the playback
                     # else:
                     #     assert n_iter < actions.shape[0], "Ran out of human actions from data."
                     u_h = playback_trajectory["actions"][n_iter, 2:]
@@ -250,9 +245,9 @@ def play_hil_planner(
                 # If we are in the observation period, then we just need to update the state history queue and get the next
                 # observation from the simulator by feeding the human input and robot input (which is from human data) to the simulator
 
-                if (n_iter <= mcfg.H + mcfg.skip) or (exp_run_mode == "replay_traj"):
+                if (n_iter <= mcfg.H + mcfg.skip) or (human == "data" and robot == "data"):
 
-                    if (n_iter % mcfg.skip != 0) and exp_run_mode != "replay_traj":
+                    if (n_iter % mcfg.skip != 0) and not (human == "data" and robot == "data"):
                         n_iter += 1
                         continue
 
@@ -266,7 +261,7 @@ def play_hil_planner(
                     u_queue = update_queue(u_queue, u_all)
 
                     # Update env with actions
-                    if exp_run_mode == "replay_traj":
+                    if (human == "data" and robot == "data"):
                         u_all = playback_trajectory["actions"][n_iter, :]
                     obs, reward, done, info = env.step(list(u_all.squeeze()))
 
@@ -439,7 +434,7 @@ def play_hil_planner(
     print("Duration of run: ", duration)
     pygame.quit()
 
-    if exp_run_mode != "replay_traj":
+    if not (human == "data" and robot == "data"):
         # Save trajectory
         trajectory["states"] = torch.stack(trajectory["states"], dim=0).numpy()
         if robot == "planner":

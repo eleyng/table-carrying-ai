@@ -1,49 +1,33 @@
 import os
 
 os.environ["SDL_AUDIODRIVER"] = "dsp"  # for training on cluster
-from os import mkdir
-from os.path import exists
-
 import math
 import pickle
 import random
 import time
-from typing import Dict, Tuple, Union, List
-import numpy as np
-import torch
+from os import mkdir
+from os.path import exists
+from typing import Dict, List, Tuple, Union
 
+import cv2 as cv
 import gym
-from gym import spaces
+import numpy as np
 import pygame
-
+import torch
+from gym import spaces
 # from gym.envs.classic_control import rendering
 from PIL import Image
-import cv2 as cv
 
+from cooperative_transport.gym_table.envs.custom_rewards import \
+    custom_reward_function
 from cooperative_transport.gym_table.envs.game_objects.game_objects import (
-    Obstacle,
-    Table,
-    Target,
-    Agent,
-)
-
-from cooperative_transport.gym_table.envs.utils import (
-    load_cfg,
-    FPS,
-    BLACK,
-    WINDOW_W,
-    WINDOW_H,
-    STATE_W,
-    STATE_H,
-    rad,
-    debug_print,
-    set_action_keyboard,
-    set_action_joystick,
-)
-
-from cooperative_transport.gym_table.envs.custom_rewards import (
-    custom_reward_function,
-)
+    Agent, Obstacle, Table, Target)
+from cooperative_transport.gym_table.envs.utils import (BLACK, FPS, STATE_H,
+                                                        STATE_W, WINDOW_H,
+                                                        WINDOW_W, debug_print,
+                                                        load_cfg, rad,
+                                                        set_action_joystick,
+                                                        set_action_keyboard)
 
 VERBOSE = False  # For debugging
 
@@ -858,12 +842,12 @@ class TableEnv(gym.Env):
         self.sprite_list.draw(self.screen)
         if self.prediction is not None:
             pygame.draw.circle(
-                self.screen, (0, 0, 255, 1), [self.table.x, self.table.y], 3
+                self.screen, (0, 255, 255, 1), [self.table.x, self.table.y], 5
             )
 
             for p in range(len(self.prediction)):
                 pygame.draw.circle(
-                    self.screen, (0, 0, 255, 1), self.prediction[p][:2], 1
+                    self.screen, (0, 255, 255, 1), self.prediction[p][:2], 3
                 )
         if self.ground_truth_states is not None:
             for p in range(len(self.ground_truth_states)):

@@ -1,23 +1,15 @@
 import math
 import os
 import pickle
-from typing import Tuple, List
+from typing import List, Tuple
 
 import numpy as np
 import pygame
 from PIL import Image
 
-from cooperative_transport.gym_table.envs.utils import (
-    m,
-    b,
-    I,
-    L,
-    d,
-    WINDOW_W,
-    WINDOW_H,
-    debug_print,
-    VERBOSE,
-)
+from cooperative_transport.gym_table.envs.utils import (VERBOSE, WINDOW_H,
+                                                        WINDOW_W, I, L, b, d,
+                                                        debug_print, m)
 
 
 class Obstacle(pygame.sprite.Sprite):

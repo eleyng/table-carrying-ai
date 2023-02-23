@@ -31,7 +31,7 @@ def get_planner_args(parser):
         "--BSIZE", type=int, default=16, help="Batch size for predictions."
     )
     parser.add_argument("--skip", type=int, default=5, help="Frame skipping.")
-    parser.add_argument("--lookahead", type=int, default=3, help="N multiplier on the number of skip frames to plan ahead for.")
+    parser.add_argument("--lookahead", type=int, default=1, help="N multiplier on the number of skip frames to plan ahead for.")
     parser.add_argument(
         "--n-layers",
         type=int,

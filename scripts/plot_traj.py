@@ -1,19 +1,15 @@
 import argparse
-import numpy as np
 from os import mkdir
-from os.path import join, isfile, isdir
-import matplotlib.pyplot as plt
+from os.path import isdir, isfile, join
+
 import matplotlib.patches as patches
+import matplotlib.pyplot as plt
+import numpy as np
 
-from cooperative_transport.gym_table.envs.utils import (
-    WINDOW_W,
-    WINDOW_H,
-    obstacle_size,
-)
+from cooperative_transport.gym_table.envs.utils import (WINDOW_H, WINDOW_W,
+                                                        obstacle_size)
+from libs.utils import make_video
 
-from libs.utils import (
-    make_video,
-)
 
 def vis(args):
     """ Visualize a HIL or standard trajectory. 
