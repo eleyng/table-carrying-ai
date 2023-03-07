@@ -179,6 +179,7 @@ def play_hil_planner(
         "real",
     ], "robot arg must be one of 'planner' or 'data' or 'real' (for turing test)"
     if robot == "real":
+        print("Robot is real")
         p1_id = 1
 
     # -------------------------------------------- SETUP PLANNER -------------------------------------------- #
@@ -314,7 +315,7 @@ def play_hil_planner(
                     u_h = torch.from_numpy(u_h).unsqueeze(0)
 
                 #### --------------------------------------------- GET ROBOT INPUTS -------------------------------------------- ####
-                if robot == "real":
+                if robot == "real" and exp_run_mode == "hil": # Turing Test mode
                     u_r = np.array(
                         [
                             joysticks[p1_id].get_axis(0),
@@ -323,7 +324,9 @@ def play_hil_planner(
                     )
                     u_r = torch.from_numpy(np.clip(u_r, -1.0, 1.0)).unsqueeze(0)
                     u_all = torch.cat((u_r, u_h), dim=-1)
-
+                elif robot == "data":
+                    u_r = torch.from_numpy(playback_trajectory["actions"][n_iter, :2]).unsqueeze(0)
+                    u_all = torch.cat((u_r, u_h), dim=-1)
                 else:
                     # -------------------------------------------- OBSERVATION PERIOD -------------------------------------------- #
 
@@ -352,8 +355,6 @@ def play_hil_planner(
                         u_queue = update_queue(u_queue, u_all)
 
                         # Update env with actions
-                        if human == "data" and robot == "data":
-                            u_all = playback_trajectory["actions"][n_iter, :]
                         obs, reward, done, info = env.step(list(u_all.squeeze()))
 
                         # Checks
@@ -502,6 +503,7 @@ def play_hil_planner(
                             u_r = torch.from_numpy(
                                 playback_trajectory["actions"][n_iter, :2]
                             ).unsqueeze(0)
+                            u_all = torch.cat((u_r, u_h), dim=-1)
 
                 u_queue = update_queue(u_queue, u_all)
 

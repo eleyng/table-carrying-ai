@@ -95,13 +95,13 @@ def get_experiment_args(parser):
     parser.add_argument(
         "--data-dir",
         type=str,
-        default="results/select_for_video/vrnn",
+        default="datasets/table-demos/rnd_obstacle_v3/random_run_name_3/trajectories",
         help="Name of of dataset directory storing past trajectory rollouts; full path from base directory",
     )
     parser.add_argument(
         "--map-dir",
         type=str,
-        default="demo/rnd_obstacle_v3/random_run_name_3/map_cfg", #"datasets/table-demos/table-demos_map-cfg/map_cfg",
+        default="datasets/table-demos/rnd_obstacle_v3/random_run_name_3/map_cfg", #"datasets/table-demos/table-demos_map-cfg/map_cfg",
         help="Name of directory storing past trajectory rollouts' map configurations; full path from base directory",
     )
     parser.add_argument(

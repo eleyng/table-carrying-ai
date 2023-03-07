@@ -69,18 +69,12 @@ def main(exp_args, exp_name):
     # Parameters for sampling
     success_rate = 0
 
-    turing_test = ["ep_101.npz", "ep_105.npz", "ep_108.npz", "ep_110.npz", "ep_113.npz",
-                    "ep_78.npz", "ep_94.npz", "ep_275.npz", "ep_276.npz", "ep_335.npz"]
-
     for f_idx in range(len(FILES)):
         # time.sleep(1)
         f = FILES[f_idx]
         game_str = f.split("/")
         ep = game_str[-1]
-        if ep in turing_test:
-            robot_control = "real"
-        else:
-            robot_control = "planner"
+        robot_control = exp_args.robot_mode
         match = [map for map in MAP_FILES if map.split("/")[-1] in ep]
 
         env = gym.make(
