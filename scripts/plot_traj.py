@@ -197,7 +197,7 @@ def main():
     parser.add_argument(
         "--path-to-gt",
         type=str,
-        default="datasets/rnd_obstacle_v3/random_run_name_3/ep_107/ep_107.npz",
+        default="datasets/rnd_obstacle_v3/random_run_name_3/trajectories/ep_107/ep_107.npz",
         help="Path to trajectory file (.npz)",
     )
     parser.add_argument(
