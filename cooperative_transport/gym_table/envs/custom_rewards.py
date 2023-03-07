@@ -1,11 +1,11 @@
 import numpy as np
 
 from cooperative_transport.gym_table.envs.utils import CONST_DT, L, WINDOW_H, WINDOW_W
-from libs.planner.planner_utils import pid_single_step
+from libs.planner.planner_utils import pid_single_step, is_safe
 
 
 ## Define custom reward functions here
-def custom_reward_function(states, goal, obs, env=None, vectorized=False, interaction_forces=False, skip=5, u_r=None, u_h=None, collision=None, success=None):
+def custom_reward_function(states, goal, obs, env=None, vectorized=False, interaction_forces=False, skip=5, u_r=None, u_h=None, collision=None, collision_checking_env=None, success=None):
     # states should be an N x state_dim array
     assert (
         len(states.shape) == 2
@@ -33,6 +33,12 @@ def custom_reward_function(states, goal, obs, env=None, vectorized=False, intera
     #         reward += -100.0
     #     if success:
     #         reward += 100.0
+    # r_collision = np.zeros(n)
+    # if collision_checking_env is not None:
+    #     for i in range(n):
+    #         r_collision[i] = -100.0 if not is_safe(states[i, :], collision_checking_env=collision_checking_env) else 0.0
+    # reward += r_collision
+
 
     dg = np.linalg.norm(states[:, :2] - goal, axis=1)
 

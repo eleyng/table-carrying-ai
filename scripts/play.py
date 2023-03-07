@@ -6,9 +6,15 @@ import numpy as np
 import pygame
 
 import cooperative_transport.gym_table.envs.utils as utils
-from cooperative_transport.gym_table.envs.utils import (CONST_DT, FPS,
-                                                        MAX_FRAMESKIP,
-                                                        debug_print)
+from cooperative_transport.gym_table.envs.utils import (
+    CONST_DT,
+    FPS,
+    MAX_FRAMESKIP,
+    debug_print,
+    get_keys_to_action,
+    init_joystick,
+    set_action_keyboard,
+)
 
 VERBOSE = False  # Set to True to print debug info
 
@@ -42,7 +48,7 @@ def play(env, zoom=None, keys_to_action=None):
         elif hasattr(env.unwrapped, "get_keys_to_action"):
             keys_to_action = env.unwrapped.get_keys_to_action()
         else:
-            keys_to_action = utils.get_keys_to_action()
+            keys_to_action = get_keys_to_action()
 
     relevant_keys = set(sum(map(list, keys_to_action.keys()), []))
 
@@ -59,7 +65,7 @@ def play(env, zoom=None, keys_to_action=None):
     clock = pygame.time.Clock()
     cnt = 0
     if env.control_type == "joystick":
-        joysticks = utils.init_joystick()
+        joysticks = init_joystick()
 
     # GAME LOOP
     while running:
@@ -67,7 +73,7 @@ def play(env, zoom=None, keys_to_action=None):
         cnt += 1
         if env_done:
             env_done = False
-            obs = env.reset()
+            # obs = env.reset()
             time.sleep(1)
 
             debug_print("Done. Resetting environment.")
@@ -75,23 +81,27 @@ def play(env, zoom=None, keys_to_action=None):
             while time.time() > next_game_tick and loops < MAX_FRAMESKIP:
                 if env.control_type == "keyboard":
                     action = keys_to_action.get(tuple(sorted(pressed_keys)), 0)
+                    action = set_action_keyboard(action)
+                    action = action.reshape(1, -1).flatten()
                 elif env.control_type == "joystick":
                     p1_id = 0  # player 1 is blue
                     p2_id = 1  # player 2 is orange
 
-                    assert len(joysticks) == 2, "Demonstration collection in joystick control requires 2 joysticks."
-                    
-                    action = np.array(
-                            [
-                                joysticks[p1_id].get_axis(0),
-                                joysticks[p1_id].get_axis(1),
-                                joysticks[p2_id].get_axis(0),
-                                joysticks[p2_id].get_axis(1),
-                            ]
-                        )
-    
-                debug_print("Action: ", action)
+                    assert (
+                        len(joysticks) == 2
+                    ), "Demonstration collection in joystick control requires 2 joysticks."
 
+                    action = np.array(
+                        [
+                            joysticks[p1_id].get_axis(0),
+                            joysticks[p1_id].get_axis(1),
+                            joysticks[p2_id].get_axis(0),
+                            joysticks[p2_id].get_axis(1),
+                        ]
+                    )
+
+                debug_print("Action: ", action)
+                print("Action: ", action, action.shape)
                 obs, rew, env_done, info = env.step(action)
                 debug_print("Loop: ", loops, info, "\n\, obs: ", obs)
                 next_game_tick += CONST_DT
@@ -124,7 +134,7 @@ def play(env, zoom=None, keys_to_action=None):
 
 
 def main():
-    
+
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--env",
@@ -153,7 +163,7 @@ def main():
     parser.add_argument(
         "--run_name",
         type=str,
-        default="random_run_name_2",
+        default="random_run_name_3",
         help="run_name name for data collection. creates a folder with this name in the repo's base directory to store data.",
     )
     parser.add_argument(
@@ -162,6 +172,13 @@ def main():
         default=0,
         help="episode number of trajectory data.",
     )
+    parser.add_argument(
+        "--max_obs",
+        type=int,
+        default=3,
+        help="maximum number of obstacles to spawn in the environment.",
+    )
+
     args = parser.parse_args()
     env = gym.make(
         args.env,
@@ -173,6 +190,7 @@ def main():
         ep=args.ep,
         dt=CONST_DT,
         render_mode="gui",
+        max_num_obstacles=args.max_obs,
     )
 
     play(env, zoom=1)

@@ -70,6 +70,7 @@ def vis(args):
     obstacles = map_run["obstacles"].item()["obstacles"]
 
     # ------------------------ Plotting --------------------------------
+    H = args.H
 
     for t in range(1, gt.shape[0], args.skip):
         # plot map
@@ -113,8 +114,6 @@ def vis(args):
         plt.xlim([0, WINDOW_W])
         plt.ylim([0, WINDOW_H])
         plt.axis("off")
-
-        H = args.H
 
         if t < H:
 
@@ -192,19 +191,19 @@ def main():
     parser.add_argument(
         "--path-to-traj",
         type=str,
-        default="results/eval_hil_seed-88_R-planner_H-data/eval_hil_seed-88_R-planner_H-data_ep_373.npz",
+        default="results/eval_hil_seed-88_R-planner-vrnn_H-real-joystick/all_subject_unseen_map2/subject_2-eval_hil_seed-88_R-planner-vrnn_H-real-joystick-ep_107.npz",
         help="Path to trajectory file (.npz)",
     )
     parser.add_argument(
         "--path-to-gt",
         type=str,
-        default="datasets/table-demos/table-demos_traj/test/test_holdout/373/ep_373.npz",
+        default="datasets/rnd_obstacle_v3/random_run_name_3/ep_107/ep_107.npz",
         help="Path to trajectory file (.npz)",
     )
     parser.add_argument(
         "--path-to-map",
         type=str,
-        default="datasets/table-demos/table-demos_map-cfg/map_cfg/ep_373.npz",
+        default="demo/rnd_obstacle_v3/random_run_name_3/map_cfg/ep_107.npz",
         help="Path to map file (.npz)",
     )
     parser.add_argument(
@@ -212,12 +211,6 @@ def main():
         type=str,
         default="demo",
         help="Define Run Mode, [demo | eval]. Demo: "
-    )
-    parser.add_argument(
-        "--map_config",
-        type=str,
-        default="rnd_obstacle_v2",
-        help="Map Config File Path",
     )
     parser.add_argument(
         "--run_name",
@@ -228,7 +221,7 @@ def main():
     parser.add_argument(
         "--ep",
         type=int,
-        default=0,
+        default=112,
         help="episode number of trajectory data.",
     )
     parser.add_argument(

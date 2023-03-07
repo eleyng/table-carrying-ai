@@ -15,19 +15,30 @@ import numpy as np
 import pygame
 import torch
 from gym import spaces
+
 # from gym.envs.classic_control import rendering
 from PIL import Image
 
-from cooperative_transport.gym_table.envs.custom_rewards import \
-    custom_reward_function
+from cooperative_transport.gym_table.envs.custom_rewards import custom_reward_function
 from cooperative_transport.gym_table.envs.game_objects.game_objects import (
-    Agent, Obstacle, Table, Target)
-from cooperative_transport.gym_table.envs.utils import (BLACK, FPS, STATE_H,
-                                                        STATE_W, WINDOW_H,
-                                                        WINDOW_W, debug_print,
-                                                        load_cfg, rad,
-                                                        set_action_joystick,
-                                                        set_action_keyboard)
+    Agent,
+    Obstacle,
+    Table,
+    Target,
+)
+from cooperative_transport.gym_table.envs.utils import (
+    BLACK,
+    FPS,
+    STATE_H,
+    STATE_W,
+    WINDOW_H,
+    WINDOW_W,
+    debug_print,
+    load_cfg,
+    rad,
+    set_action_joystick,
+    set_action_keyboard,
+)
 
 VERBOSE = False  # For debugging
 
@@ -72,9 +83,7 @@ class TableEnv(gym.Env):
             mkdir(os.path.join(root_dir, run_mode))
         if not exists(os.path.join(root_dir, run_mode, map_name)):
             mkdir(os.path.join(root_dir, run_mode, map_name))
-        self.base_dirname = os.path.join(
-            root_dir, run_mode, map_name, run_name
-        )
+        self.base_dirname = os.path.join(root_dir, run_mode, map_name, run_name)
         self.dirname = os.path.join(
             root_dir, run_mode, map_name, run_name, "trajectories"
         )  # "runs/two-player-bc") #"../results/one-player-bc")
@@ -97,7 +106,7 @@ class TableEnv(gym.Env):
 
         self.file_name = os.path.join(self.dirname, "ep_" + str(self.ep) + ".pkl")
         self.config_file_name = os.path.join(
-            self.map_config_dir, "config_params-ep_" + str(self.ep) + ".npz"
+            self.map_config_dir, "ep_" + str(self.ep) + ".npz"
         )
         self.file_name_fluency = os.path.join(
             self.dirname_fluency, "ep_" + str(self.ep) + ".npz"
@@ -182,7 +191,6 @@ class TableEnv(gym.Env):
         # initialize obstacles & obstacle sprites
         self.obstacles = np.zeros((self.num_obstacles, 2))
         self.obs_sprite = []
-
         for i in range(len(self.obs_lst)):
             obs = np.array(
                 [
@@ -329,9 +337,9 @@ class TableEnv(gym.Env):
         obs="discrete",
         control="joystick",
         map_config="cooperative_transport/gym_table/config/maps/rnd_obstacle_v2.yml",
-        load_map=None,  
-        run_mode="demo",  
-        run_name="random",  
+        load_map=None,
+        run_mode="demo",
+        run_name="random",
         ep=0,
         dt=1 / 30,
         state_dim=9,
@@ -342,10 +350,10 @@ class TableEnv(gym.Env):
         """
         Initialize the environment.
 
-        Args: 
-            render_mode:        (str) "gui" or "headless". 
-                                Set to "headless" for RL training without display, "gui" for data collection. 
-            obs:                (str) "discrete" or "rgb". Set to "discrete" for explicit state representation, 
+        Args:
+            render_mode:        (str) "gui" or "headless".
+                                Set to "headless" for RL training without display, "gui" for data collection.
+            obs:                (str) "discrete" or "rgb". Set to "discrete" for explicit state representation,
                                 (str) "rgb" for image-based state representation (WARNING: not tested).
             control:            (str) "joystick" or "keyboard" for joystick or keyboard control.
             map_config:         (str) path to map configuration file in cooperative_transport/gym_table/config/maps.
@@ -413,7 +421,9 @@ class TableEnv(gym.Env):
         self.past_states = None
         self.completed_traj = None
         self.completed_traj_fluency = None
-        self.include_interaction_forces_in_rewards = include_interaction_forces_in_rewards
+        self.include_interaction_forces_in_rewards = (
+            include_interaction_forces_in_rewards
+        )
 
         self.init_pygame()
         self.handle_kwargs(obs, control, map_config, ep)
@@ -443,13 +453,15 @@ class TableEnv(gym.Env):
 
     def _set_action(self, action):
         if self.control_type == "keyboard":
-            return set_action_joystick(action) # FIXED: actions converted to continuous before being passed to set_action_joystick
+            return set_action_joystick(
+                action
+            )  # FIXED: actions converted to continuous before being passed to set_action_joystick
         elif self.control_type in ["joystick", "data", "policy"]:
             return set_action_joystick(action)
 
     def step(
         self, action: List[np.ndarray]
-    ) -> Tuple[np.ndarray, np.ndarray, bool, Dict[str, Union[bool, float]]]:
+    ) -> Tuple[np.ndarray, float, bool, Dict[str, Union[bool, float]]]:
         """Step the environment forward.
 
         Parameters
@@ -461,12 +473,12 @@ class TableEnv(gym.Env):
         -------
         observation : np.ndarray, shape=(self.state_dim, )
             Observations. See get_state() for details.
-        reward : np.ndarray, shape=(N, )
-            Reward at this step. If N != 1, then reward is a vector of rewards for a sequence or batch.
+        reward : float
+            Reward at this step.
         done : bool
             Boolean indicating whether the episode satisfies an end condition.
-        info : Dict[int, str, float, bool, bool, float]
-            Information about the step: n_step (int), reward float, done bool, success bool, interaction force float.
+        info : Dict[str, Union[bool, float]]
+            Information about the run. For now, contains the reward and done bool.
         """
         self.n_step += 1
         debug_print("dt in step: ", self.delta_t)
@@ -497,7 +509,14 @@ class TableEnv(gym.Env):
         self.observation = self.get_state()
         self.done = self.check_collision()
         self.compute_fluency(action)
-        reward = self.compute_reward(np.expand_dims(self.observation, axis=0), vectorized=self.vectorized, collision=self.done, success=self.success, u_r=f1, u_h=f2)
+        reward = self.compute_reward(
+            np.expand_dims(self.observation, axis=0),
+            vectorized=self.vectorized,
+            collision=self.done,
+            success=self.success,
+            u_r=f1,
+            u_h=f2,
+        )
         self.cumulative_reward += reward
         debug_print(
             "Done? ",
@@ -541,7 +560,17 @@ class TableEnv(gym.Env):
         # return self.observation, reward, self.done, info
 
         if self.success:
-            print("Success. ", "Done: ", self.done, ", Success: ", self.success, ", Steps: ", self.n_step, ", Cumulative reward: ", self.cumulative_reward)
+            print(
+                "Success. ",
+                "Done: ",
+                self.done,
+                ", Success: ",
+                self.success,
+                ", Steps: ",
+                self.n_step,
+                ", Cumulative reward: ",
+                self.cumulative_reward,
+            )
             self.completed_traj = self.data
             self.completed_traj_fluency = self.fluency
             states = self.get_state()
@@ -555,7 +584,17 @@ class TableEnv(gym.Env):
                 info,
             )
         elif self.done:
-            print("Collision. ", "Done: ", self.done, ", Success: ", self.success, ", Steps: ", self.n_step, ", Cumulative reward: ", self.cumulative_reward)
+            print(
+                "Collision. ",
+                "Done: ",
+                self.done,
+                ", Success: ",
+                self.success,
+                ", Steps: ",
+                self.n_step,
+                ", Cumulative reward: ",
+                self.cumulative_reward,
+            )
             self.completed_traj = self.data
             self.completed_traj_fluency = self.fluency
             states = self.get_state()
@@ -570,7 +609,17 @@ class TableEnv(gym.Env):
             )
         else:
             if self.n_step > self.ep_length:
-                print("Break due to step limit. ", "Done: ", False, ", Success: ", self.success, ", Steps: ", self.n_step, ", Cumulative reward: ", self.cumulative_reward)
+                print(
+                    "Break due to step limit. ",
+                    "Done: ",
+                    False,
+                    ", Success: ",
+                    self.success,
+                    ", Steps: ",
+                    self.n_step,
+                    ", Cumulative reward: ",
+                    self.cumulative_reward,
+                )
                 self.completed_traj = self.data
                 self.completed_traj_fluency = self.fluency
                 states = self.get_state()
@@ -594,7 +643,9 @@ class TableEnv(gym.Env):
 
     def compute_fluency(self, action):
         if self.control_type == "keyboard":
-            return self.compute_fluency_cont(action) # FIXED: converted action from discrete to continuous
+            return self.compute_fluency_cont(
+                action
+            )  # FIXED: converted action from discrete to continuous
         elif self.control_type == "joystick":
             return self.compute_fluency_cont(action)
 
@@ -688,8 +739,27 @@ class TableEnv(gym.Env):
 
         self.dist2wall = np.min(self.dist2wall_list, axis=1, keepdims=True)
 
-    def compute_reward(self, states, interaction_forces=None, vectorized=False, collision=None, success=None, u_r=None, u_h=None) -> float:
-        reward = custom_reward_function(states, self.goal, self.obstacles, interaction_forces=self.include_interaction_forces_in_rewards, vectorized=vectorized, collision=collision, success=success, u_r=u_r, u_h=u_h)
+    def compute_reward(
+        self,
+        states,
+        interaction_forces=None,
+        vectorized=False,
+        collision=None,
+        success=None,
+        u_r=None,
+        u_h=None,
+    ) -> float:
+        reward = custom_reward_function(
+            states,
+            self.goal,
+            self.obstacles,
+            interaction_forces=self.include_interaction_forces_in_rewards,
+            vectorized=vectorized,
+            collision=collision,
+            success=success,
+            u_r=u_r,
+            u_h=u_h,
+        )
         return reward
 
     def check_collision(self) -> bool:
@@ -720,18 +790,6 @@ class TableEnv(gym.Env):
             if not self.screen.get_rect().contains(self.table):
                 debug_print("HIT WALL")
                 return True
-            elif self.table.rect.left < 0:
-                debug_print("HIT LEFT WALL")
-                return True
-            elif self.table.rect.right > WINDOW_W:
-                debug_print("HIT RIGHT WALL")
-                return True
-            elif self.table.rect.top < 0:
-                debug_print("HIT TOP WALL")
-                return True
-            elif self.table.rect.bottom > WINDOW_H:
-                debug_print("HIT BOTTOM WALL")
-                return True
             else:
                 return False  # , 0
 
@@ -760,7 +818,7 @@ class TableEnv(gym.Env):
         self.ep += 1
         self.file_name = os.path.join(self.dirname, "ep_" + str(self.ep) + ".pkl")
         self.config_file_name = os.path.join(
-            self.map_config_dir, "config_params-ep_" + str(self.ep) + ".npz"
+            self.map_config_dir, "ep_" + str(self.ep) + ".npz"
         )
         self.file_name_fluency = os.path.join(
             self.dirname_fluency, "ep_" + str(self.ep) + ".npz"
@@ -810,9 +868,9 @@ class TableEnv(gym.Env):
 
         collision = False
         success = False
-        
+
         if any(hit_list):
-            
+
             collision = True
             if any(
                 pygame.sprite.spritecollide(
@@ -825,19 +883,14 @@ class TableEnv(gym.Env):
                 debug_print("HIT OBSTACLE")
         else:
             # wall collision
-            if not self.screen.get_rect().contains(self.table) \
-                or self.table.rect.left < 0 \
-                or self.table.rect.right > WINDOW_W \
-                or self.table.rect.top < 0 \
-                or self.table.rect.bottom > WINDOW_H:
+            if (
+                not self.screen.get_rect().contains(self.table)
+            ):
 
                 collision = True
                 debug_print("HIT WALL")
 
         return collision, success
-    
-    
-    
 
     @staticmethod
     def standardize(self, ins, mean, std):
@@ -865,22 +918,22 @@ class TableEnv(gym.Env):
         self.sprite_list.draw(self.screen)
         if self.prediction is not None:
             pygame.draw.circle(
-                self.screen, (0, 255, 255, 1), [self.table.x, self.table.y], 5
+                self.screen, (243, 162, 97, 1), [self.table.x, self.table.y], 5
             )
 
             for p in range(len(self.prediction)):
                 pygame.draw.circle(
-                    self.screen, (0, 255, 255, 1), self.prediction[p][:2], 3
+                    self.screen, (243, 162, 97, 1), self.prediction[p][:2], 3
                 )
         if self.ground_truth_states is not None:
             for p in range(len(self.ground_truth_states)):
                 pygame.draw.circle(
-                    self.screen, (0, 255, 0, 0.5), self.ground_truth_states[p][:2], 2
+                    self.screen, (42, 157, 142, 0.5), self.ground_truth_states[p][:2], 2
                 )
         if self.past_states is not None:
             for p in range(len(self.past_states)):
                 pygame.draw.circle(
-                    self.screen, (255, 255, 0, 0.5), self.past_states[p][:2], 2
+                    self.screen, (42, 157, 142, 0.5), self.past_states[p][:2], 2
                 )
 
         pygame.display.update()

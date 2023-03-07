@@ -1,8 +1,17 @@
 import numpy as np
 import torch
+import pygame
 
-from cooperative_transport.gym_table.envs.utils import CONST_DT, L
+from cooperative_transport.gym_table.envs.utils import (
+    CONST_DT,
+    L,
+    debug_print,
+    WINDOW_H,
+    WINDOW_W,
+)
 
+
+# ------------------------ VRNN Planner Utils  ------------------------
 """ For planner used in Ng, et al. Learning to Plan for Human-Robot Cooperative Carrying. (ICRA 2023)."""
 
 
@@ -25,7 +34,6 @@ def get_action_from_wrench(wrench, current_state, u_h):
     # f1_x, f1_y = F_des[0], F_des[1]
 
     return F_des  # in world frame
-
 
 
 def get_joint_action_from_wrench(wrench, current_state):
@@ -92,6 +100,7 @@ def update_queue(a, x):
 
 
 def tf2model(state_data):
+    print("state_data", state_data[0,:])
     # must remove theta obs (last dim of state_data)
     # takes observation (only map info) and returns ego-centric vector to obs/goal for use in model
     state_xy = state_data[:, :2]
@@ -170,3 +179,71 @@ def tfego2w(obs_data_w, pred_ego):
     )
 
     return p_waypt_w
+
+
+
+
+def is_safe(state, collision_checking_env=None):
+    """
+    Customize state validity checker function for external planners
+    Input: current state
+    Output: True if current state is valid (collision free, etc.)
+    """
+    collision, _ = collision_checking_env.mp_check_collision_and_success(state)
+    return not collision
+
+
+def mp_check_collision_and_success(env, state) -> bool:
+    """Check for collisions and success.
+
+    Returns
+    -------
+    collided : Boolean
+        Whether the table has collided with the obstacles
+    success : Boolean
+        Whether the table has reached the target
+    """
+    # set table position
+    env.table.x = state[0]
+    env.table.y = state[1]
+    env.table.angle = state[2]
+    # update sprite
+    env.table.image = pygame.transform.rotate(
+        env.table.original_img, np.degrees(env.table.angle)
+    )
+    env.table.rect = env.table.image.get_rect(center=(env.table.x, env.table.y))
+    env.table.mask = pygame.mask.from_surface(env.table.image)
+
+    hit_list = pygame.sprite.spritecollide(
+        env.table, env.done_list, False, pygame.sprite.collide_mask
+    )
+
+    collision = False
+    success = False
+
+    if any(hit_list):
+
+        collision = True
+        if any(
+            pygame.sprite.spritecollide(
+                env.table, [env.target], False, pygame.sprite.collide_mask
+            )
+        ):
+            success = True
+            debug_print("HIT TARGET")
+        else:
+            debug_print("HIT OBSTACLE")
+    else:
+        # wall collision
+        if (
+            not env.screen.get_rect().contains(env.table)
+            or env.table.rect.left < 0
+            or env.table.rect.right > WINDOW_W
+            or env.table.rect.top < 0
+            or env.table.rect.bottom > WINDOW_H
+        ):
+
+            collision = True
+            debug_print("HIT WALL")
+
+    return collision, success

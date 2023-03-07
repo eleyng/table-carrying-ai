@@ -18,7 +18,10 @@ def get_experiment_args(parser):
         help="Run mode. Options: [hil | replay_traj | coplanning]",
     )
     parser.add_argument(
-        "--ep", type=int, default=0, help="Episode number to start from when recording data."
+        "--ep",
+        type=int,
+        default=0,
+        help="Episode number to start from when recording data.",
     )
 
     # ------------------------ ROBOT MODE ------------------------ #
@@ -27,6 +30,12 @@ def get_experiment_args(parser):
         type=str,
         default="planner",
         help="Robot mode. Options: [planner | policy | data]",
+    )
+    parser.add_argument(
+        "--planner-type",
+        type=str,
+        default="vrnn",
+        help="Planner type. Options: [vrnn | rrt].",
     )
 
     # ------------------------ HUMAN MODE ------------------------ #
@@ -44,10 +53,9 @@ def get_experiment_args(parser):
         help="Human control. Options: [keyboard, joystick].",
     )
 
-
     # ------------------------ REWARD FUNCTION SETTINGS ------------------------ #
     parser.add_argument(
-        "--include_interaction_forces_in_rewards",
+        "--include-interaction-forces-in-rewards",
         action="store_true",
         default=False,
         help="Include interaction forces in reward function.",
@@ -85,23 +93,24 @@ def get_experiment_args(parser):
     )
     parser.add_argument("--plot-dir", type=str, default="plots", help="Plots directory")
     parser.add_argument(
-        "--data_dir",
+        "--data-dir",
         type=str,
-        default="datasets/table-demos/table-demos_traj/test/test_holdout",
+        default="results/select_for_video/vrnn",
         help="Name of of dataset directory storing past trajectory rollouts; full path from base directory",
     )
     parser.add_argument(
-        "--map_dir",
+        "--map-dir",
         type=str,
-        default="datasets/table-demos/table-demos_map-cfg/map_cfg",
+        default="demo/rnd_obstacle_v3/random_run_name_3/map_cfg", #"datasets/table-demos/table-demos_map-cfg/map_cfg",
         help="Name of directory storing past trajectory rollouts' map configurations; full path from base directory",
     )
     parser.add_argument(
-        "--map_config",
+        "--map-config",
         type=str,
-        default="cooperative_transport/gym_table/config/maps/rnd_obstacle_v2.yml",
+        default="cooperative_transport/gym_table/config/maps/rnd_obstacle_v3.yml",
         help="Map Config File Path -- stores possible map configurations for the environment, which you can define.",
     )
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog="Experiment Configuration.")

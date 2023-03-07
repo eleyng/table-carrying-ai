@@ -1,6 +1,6 @@
 pkl_data_base: demo
-map_config: rnd_obstacle_v2
-run_name: random_run_name_2
+map_config: rnd_obstacle_v3
+run_name: random_run_name_3
 npz_data_base: datasets
 keyboard_actions: False
 ## Data filtering options
