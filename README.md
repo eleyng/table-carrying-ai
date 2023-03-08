@@ -13,7 +13,7 @@ Diverse behaviors remain a key barrier to human-robot cooperation. This is a **c
 
 The objective is to carry the table from start to goal while avoiding obstacles. Each agent is physically constrained to the table while moving it, but can exert a force on the side they are carrying it. Rewards can be customized to achieve task success (reaching goal without hitting obstacles), but also other cooperative objectives (minimal interaction forces, etc. for *fluency*).
 
-The main branch environment is used in the 2023 ICRA paper *[It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying](https://arxiv.org/abs/2209.12890)* [1]. Link to [video](https://www.youtube.com/watch?v=CqWh-yWOgeA).
+The main branch environment is used in the 2023 ICRA paper *[It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying](https://arxiv.org/abs/2209.12890)* [1]. Link to [project webpage]: (https://sites.google.com/view/cooperative-carrying).
 
 
 ## Installation
@@ -43,7 +43,7 @@ python tests/test_joystick.py
 ## Quickstart
 
 ### Dataset and trained models download
-Download human-human demonstration dataset and trained models, collected for [1]: [Link](https://drive.google.com/drive/folders/1RqmUrl0xPPURRrGFpoC3pgIm-NmgyKV6?usp=share_link). Both folders ("trained_models", "datasets") should be in the base directory. Note that an optional `results` directory from a sample evaluation with human recorded data and robot planner is included for plotting in this Quickstart section.
+Download human-human demonstration dataset, trained models, human-in-the-loop trajectories collected for [1]: [Link](https://drive.google.com/drive/folders/1RqmUrl0xPPURRrGFpoC3pgIm-NmgyKV6?usp=share_link). "trained_models", "datasets", "results", should be in the base directory. Note that an optional `results` directory from a sample evaluation with human recorded data and robot planner is included for plotting in this Quickstart section.
 
 ### Install robot planner (Required! if running robot in planner mode)
 Install the cooperative planner from [1] as a submodule in the `algo/planners` folder as instructed [here](https://github.com/eleyng/cooperative_planner). 
@@ -66,8 +66,8 @@ For keyboard control, **use 'WASD'** (not arrow keys). **Player 1 is robot (blue
 Note that the planner requires a ground truth trajectory's first H steps of data to be fed into the model (default: H = 30 , which is ~1 sec given default FPS = 30). The ground truth trajectory is also used to set the configuration (obstacles, initial pose, goal location) for the run, and helps us compare the planned trajectories to the ground truth trajectories.
 
 To set the path for various test set ground truth trajectories:
-- For the test holdout dataset, set the `--data-dir` flag to `datasets/table-demos/table-demos_traj/test/test_holdout` (currently default).  
-- For the unseen map dataset, set the  `--data-dir` flag to `datasets/table-demos/table-demos_traj/test/unseen_map`.
+- For the unseen map dataset, set the  `--data-dir` flag to `datasets/rnd_obstacle_v3/random_run_name_3/trajectories` (currently default).
+- For the test holdout dataset, set the `--data-dir` flag to `datasets/demonstrations/trajectories/test/test_holdout`.  
 
 ### Visualizing
 To visualize your human-in-the-loop trials (or other experiment), run:  
@@ -75,7 +75,7 @@ To visualize your human-in-the-loop trials (or other experiment), run:
 
 Add the `--video` flag if you'd like to convert the images into a video!  
 
-A sample evaluation with human recorded data and robot planner is included in the [dataset download](https://drive.google.com/drive/folders/1JMZys9Bfc-COZtvbLST4uiyrHnEyNIpK?usp=share_link) for quickstart plotting -- place the `results/` directory in the base dir of this repo and run the above command without any args (add the `--video` flag if you would like to render a video).
+A set of evaluations with human control and robot planner is included in the [dataset download](https://drive.google.com/drive/folders/1JMZys9Bfc-COZtvbLST4uiyrHnEyNIpK?usp=share_link) for quickstart plotting -- place the `results/` directory in the base dir of this repo and run the above command without any args (add the `--video` flag if you would like to render a video).
 
 ## Custom Env Structure Overview
 
@@ -139,7 +139,7 @@ To collect your own dataset with two humans, run:
 See file for additional optional args. For each dataset collection session, you can record as many trajectories with your partner as needed. Several directories will be created to log the collected data:  
 - `demos/{map_config_name}/{custom_session_name}/trajectories/` : each trajectory generates a new pkl in this directory to store the following ([see file for details](https://github.com/eleyng/table-carrying-ai/blob/5e6f22161d730b095f12e81a49e062e67d1aae66/cooperative_transport/gym_table/envs/table_env.py#L522)): table pose, velocity, each agents' actions, reward, done, success, n_step, dt, goal position, obstalce positions, points to describe the walls, cumulative reward  
 - `demos/{map_config_name}/{custom_session_name}/map_cfg/` : since you can sample random configurations of obstacles, initial positions, and goal locations described in the map config (example config [here](https://github.com/eleyng/table-carrying-ai/blob/main/cooperative_transport/gym_table/config/maps/rnd_obstacle_v2.yml), each trajectory generates a .npz in this directory to store the sampled map config for the corresponding run.  
-- `demos/{map_config_name}/{custom_session_name}/fluency/` : logs the fluency computed for each trajectory, stored in a .npz.
+- `demos/{map_config_name}/{custom_session_name}/fluency/` : logs the fluency metrics computed for each trajectory, stored in a .npz.
 - `demos/{map_config_name}/{custom_session_name}/figures/` : saves the RGB images for each trajectory.  
 
 The trajectory data is collected as a .pkl, and you can run processing on it to convert to .npz, and other steps like low-pass filters to the actions, skip frames, or removing frames with stopped motion. If you are collecting a human-human demo dataset and wish to visualize any of the trajectories, you **must run the dataprocessing script** to use any of the visualization tools (since trajectories are required to be in .npz). To run the dataprocessing script, modify `configs/dataset_processing_params.yml`, then run `python scripts/process_data.py`. 
@@ -173,7 +173,7 @@ If you would like to use our environment, please cite us:
 ```
 
 ## Upcoming features:
-- add human bc policy
+- integration with imitation library [added 3/7/22] -- Now you can train policies via the [imitation lib](https://imitation.readthedocs.io/en/latest/) and deploy them on the env.
 
 ## Contact  
-For issues, comments, suggestions, or anything else, please contact [Eley Ng](https://eleyng.github.io) at eleyng@stanford.edu.
+For issues, comments, suggestions, or discussion, please contact [Eley Ng](https://eleyng.github.io) at eleyng@stanford.edu.
