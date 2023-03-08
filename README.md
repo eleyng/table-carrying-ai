@@ -13,7 +13,7 @@ Diverse behaviors remain a key barrier to human-robot cooperation. This is a **c
 
 The objective is to carry the table from start to goal while avoiding obstacles. Each agent is physically constrained to the table while moving it, but can exert a force on the side they are carrying it. Rewards can be customized to achieve task success (reaching goal without hitting obstacles), but also other cooperative objectives (minimal interaction forces, etc. for *fluency*).
 
-The main branch environment is used in the 2023 ICRA paper *[It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying](https://arxiv.org/abs/2209.12890)* [1]. Link to **[project webpage](https://sites.google.com/view/cooperative-carrying)**.
+The main branch environment is used in the 2023 ICRA paper **[It Takes Two: Learning to Plan for Human-Robot Cooperative Carrying](https://sites.google.com/view/cooperative-carrying)** [1].
 
 
 ## Installation
