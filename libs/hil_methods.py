@@ -5,26 +5,19 @@ from os.path import dirname, join
 import numpy as np
 import pygame
 import torch
-from algo.planners.cooperative_planner.models import VRNN
-from cooperative_transport.gym_table.envs.custom_rewards import custom_reward_function
-from cooperative_transport.gym_table.envs.utils import (
-    CONST_DT,
-    FPS,
-    MAX_FRAMESKIP,
-    WINDOW_H,
-    WINDOW_W,
-    debug_print,
-    get_keys_to_action,
-    init_joystick,
-    set_action_keyboard,
-)
-from libs.planner.planner_utils import (
-    is_safe,
-    pid_single_step,
-    tf2model,
-    tf2sim,
-    update_queue,
-)
+
+# from algo.planners.cooperative_planner.models import VRNN
+from cooperative_transport.gym_table.envs.custom_rewards import \
+    custom_reward_function
+from cooperative_transport.gym_table.envs.utils import (CONST_DT, FPS,
+                                                        MAX_FRAMESKIP,
+                                                        WINDOW_H, WINDOW_W,
+                                                        debug_print,
+                                                        get_keys_to_action,
+                                                        init_joystick,
+                                                        set_action_keyboard)
+from libs.planner.planner_utils import (is_safe, pid_single_step, tf2model,
+                                        tf2sim, update_queue)
 
 
 def compute_reward(
@@ -215,7 +208,8 @@ def play_hil_planner(
 
     # reset environment
     obs = env.reset()
-    obs = torch.from_numpy(obs).float()
+    if not isinstance(obs, torch.Tensor):
+        obs = torch.from_numpy(obs).float()
     info = None
     done = False
     n_iter = 0
@@ -367,7 +361,7 @@ def play_hil_planner(
                             running = False
                             trajectory["states"].append(obs)
                             trajectory["actions"].append(u_all)
-                            trajectory["rewards"].append(torch.tensor(reward))
+                            trajectory["rewards"].append(torch.Tensor(reward))
                             trajectory["fluency"].append(env)
                             break
 
@@ -376,7 +370,8 @@ def play_hil_planner(
                             env.draw_past_states(past_states)
 
                         # Update obseravations for model
-                        obs = torch.from_numpy(obs).float()
+                        if not isinstance(obs, torch.Tensor):
+                            obs = torch.from_numpy(obs).float()
                         s_queue = update_queue(s_queue, obs.unsqueeze(0))
                         n_iter += 1
                         continue
@@ -516,17 +511,18 @@ def play_hil_planner(
                     env.draw_past_states(past_states)
 
                 # Update obseravations for model
-                obs = torch.from_numpy(obs).float()
+                if not isinstance(obs, torch.Tensor):
+                    obs = torch.from_numpy(obs).float()
                 s_queue = update_queue(s_queue, obs.unsqueeze(0))
 
                 trajectory["states"].append(obs)
                 if robot == "planner":
                     if planner_type == "vrnn":
-                        trajectory["plan"].append(torch.tensor(path))
+                        trajectory["plan"].append(torch.Tensor(path))
                     elif planner_type == "rrt":
                         trajectory["plan"].append(path.tolist())
                 trajectory["actions"].append(u_all)
-                trajectory["rewards"].append(torch.tensor(reward))
+                trajectory["rewards"].append(torch.Tensor(reward))
                 trajectory["fluency"].append(env.fluency)
                 if done:
                     if info["success"]:
