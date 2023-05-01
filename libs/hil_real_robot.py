@@ -23,9 +23,42 @@ from libs.planner.planner_utils import (is_safe, pid_single_step, tf2model,
                                         tf2sim, update_queue)
 
 from libs.real_robot_utils import (reset_odom, euler_from_quaternion,
-                                   MIN_X, MIN_Y, MAX_X, MAX_Y)
+                                   MIN_X, MIN_Y, MAX_X, MAX_Y,
+                                   share_control, move, compute_reward)
 
 
+
+def mocap_cb(msg):
+    global mocap_table_pose
+    global prev_mocap_table_pose
+    global world_inertial_frame
+    global table_center_frame_name
+    mocap_table_pose = msg.pose
+
+    #For Real world:
+    world_inertial_frame = rospy.get_param('world_frame_name', "nice_origin") #this is origin in sim
+    table_center_frame_name= rospy.get_param('table_center_frame_name', "table_carried")
+
+# Initialize node
+rospy.init_node("locobot" + "_coop_carry")
+rate = rospy.Rate(FPS)
+reset_odom()
+
+# while not rospy.is_shutdown():
+#     rospy.loginfo("DT check")
+#     rate.sleep()
+
+# Create Publisher/Subscribers
+# SUBSCRIBERS -- table pose
+global sub_table_pose, pub_p_des_vel
+sub_table_pose = rospy.Subscriber("/vrpn_client_node/table_carried/pose", PoseStamped, mocap_cb)
+# PUBLISHERS -- table velocity
+pub_p_des_vel = rospy.Publisher("/table_velocity", Twist, queue_size=5)
+
+# Create tf buffer and listener to nice_origin (RH rule)
+global tfBuffer, listener
+tfBuffer = tf2_ros.Buffer()
+listener = tf2_ros.TransformListener(tfBuffer)
 
 def play_hil_planner(
     env,
@@ -97,24 +130,15 @@ def play_hil_planner(
 
         return trans
 
-    def mocap_cb(msg):
-        global mocap_table_pose
-        global prev_mocap_table_pose
-        global world_inertial_frame
-        global table_center_frame_name
-        mocap_table_pose = msg.pose
-
-        #For Real world:
-        world_inertial_frame = rospy.get_param('world_frame_name', "nice_origin") #this is origin in sim
-        table_center_frame_name= rospy.get_param('table_center_frame_name', "table_carried")
     
     # -------------------------------------------- INIT GLOBAL REAL WORLD FUNCS -------------------------------------------- #
-    def mocap_pose_to_obs(obs, map_info, grid):
+    def mocap_pose_to_obs(obs, map_info, grid, past_rod_center_vec=None):
         """ Convert mocap pose to observation in sim
         obs: np.array (7 + 5 + 6 = 18, )
         table x, y, cth, sth, xspeed, yspeed, ang_speed, map_info (5), grid (6)
         Return: np.array (7 + 5 + 6 = 18, )
         """
+        start = time.time()
         
         rod_center_vect = transform_lookup(frame_parent=world_inertial_frame, frame_child=table_center_frame_name, time=rospy.Time())
         position = [rod_center_vect.transform.translation.x, rod_center_vect.transform.translation.y]
@@ -122,13 +146,18 @@ def play_hil_planner(
                                     rod_center_vect.transform.rotation.y, 
                                     rod_center_vect.transform.rotation.z, 
                                     rod_center_vect.transform.rotation.w)[2]
-        new_theta = theta % (2 * np.pi)
+        ang_tf = np.pi / 2
+        new_theta = (theta + ang_tf) % (2 * np.pi)
         # calc velocity ## TODO: add velocity pose message
-        past_step_time = rod_center_vect.header.stamp.secs - rospy.Duration(CONST_DT)
-        past_rod_center_vect = transform_lookup(frame_parent=world_inertial_frame, frame_child=table_center_frame_name, time=rospy.Time(), past_time=past_step_time)
-        prrv = past_rod_center_vect.transform
-        delta_rot = euler_from_quaternion(prrv.rotation.x, prrv.rotation.y, prrv.rotation.z, prrv.rotation.w)[2]
-        velocity = [prrv.translation.x / CONST_DT, prrv.translation.y / CONST_DT, delta_rot / CONST_DT]
+        # past_step_time = rod_center_vect.header.stamp.secs - CONST_DT
+        # past_rod_center_vect = transform_lookup(frame_parent=world_inertial_frame, frame_child=table_center_frame_name, time=rospy.Time(), past_time=rospy.Time(past_step_time))
+        if past_rod_center_vec is None:
+            velocity = np.zeros(3)
+        else:
+            # prrv = past_rod_center_vec.transform
+            # delta_rot = euler_from_quaternion(prrv.rotation.x, prrv.rotation.y, prrv.rotation.z, prrv.rotation.w)[2]
+            velocity = [(position[0] - past_rod_center_vec[0]) / CONST_DT, (position[1] - past_rod_center_vec[1]) / CONST_DT, (new_theta - (past_rod_center_vec[2] % (2 * np.pi)))/ CONST_DT]
+        past_rod_center_vec = np.array([position[0], position[1], new_theta])
         new_obs = np.zeros(18, ) # [x, y, cos, sin, goal_x, goal_y, obs_x, obs_y, table.angle]
         # TODO: tune params to scale things, polulate ob
         # scale position to match sim scale
@@ -140,24 +169,14 @@ def play_hil_planner(
         new_obs[4:7] = velocity
         new_obs[7:12] = map_info
         new_obs[12:18] = grid
+        print('obs tf', time.time() - start)
 
-        return new_obs
-
-    # Create Publisher/Subscribers
-    # SUBSCRIBERS -- table pose
-    global sub_table_pose, pub_p_des_vel
-    sub_table_pose = rospy.Subscriber("/vrpn_client_node/table_carried/pose", PoseStamped, mocap_cb)
-    # PUBLISHERS -- table velocity
-    pub_p_des_vel = rospy.Publisher("/table_velocity", Twist, queue_size=5)
-
-    # Create tf buffer and listener to nice_origin (RH rule)
-    global tfBuffer, listener
-    tfBuffer = tf2_ros.Buffer()
-    listener = tf2_ros.TransformListener(tfBuffer)
-
-    # Initialize node
-    rospy.init_node("locobot" + "_coop_carry")
-    reset_odom()
+        return new_obs, past_rod_center_vec
+    
+    
+    # Create variables
+    global past_rod_center_vec
+    past_rod_center_vec = None
 
     # -------------------------------------------- SETUP SAVED DATA -------------------------------------------- #
 
@@ -227,8 +246,8 @@ def play_hil_planner(
         if planner_type == "vrnn":
             sys.path.append(join(dirname(__file__), "..", "algo", "planners", "cooperative_planner"))
             from algo.planners.cooperative_planner.models import VRNN
-            artifact_path = join("/home/eleyng/table-carrying-ai/trained_models/vrnn/model.ckpt")
-            model = VRNN.load_from_checkpoint(artifact_path)
+            artifact_path = join("/home/collab1/table-carrying-ai/trained_models/vrnn/model.ckpt")
+            model = VRNN.load_from_checkpoint(artifact_path, map_location=torch.device('cpu'))
             model.eval()
             model.batch_size = num_candidates
             model.skip = skip
@@ -256,7 +275,7 @@ def play_hil_planner(
             import hydra
             from omegaconf import OmegaConf
 
-            sys.path.append('/home/eleyng/diffusion_policy')
+            sys.path.append('/home/collab1/diffusion_policy')
             import diffusion_policy.common.pytorch_util as ptu
             import diffusion_policy.policy.diffusion_transformer_lowdim_policy as dp_policy
             from diffusion_policy.dataset.base_dataset import BaseLowdimDataset
@@ -267,9 +286,9 @@ def play_hil_planner(
 
             # load checkpoint
             if mcfg.human_act_as_cond:
-                ckpt_path = join("/home/eleyng/table-carrying-ai/trained_models/diffusion/model_human_act_as_cond_10Hz.ckpt")
+                ckpt_path = join("/home/collab1/table-carrying-ai/trained_models/diffusion/model_human_act_as_cond_10Hz.ckpt")
             else:
-                ckpt_path = join("/home/eleyng/table-carrying-ai/trained_models/diffusion/model_10Hz.ckpt")
+                ckpt_path = join("/home/collab1/table-carrying-ai/trained_models/diffusion/model_10Hz.ckpt")
             payload = torch.load(open(ckpt_path, 'rb'), pickle_module=dill)
 
             # load hydra config
@@ -301,7 +320,7 @@ def play_hil_planner(
 
             env = env_fn()
 
-            dataset_path = "/home/eleyng/diffusion_policy/data/table/table.zarr"
+            dataset_path = "/home/collab1/diffusion_policy/data/table/table.zarr"
             OmegaConf.update(cfg, "task.dataset.zarr_path", dataset_path, merge=False)
             dataset: BaseLowdimDataset
             dataset = hydra.utils.instantiate(cfg.task.dataset)
@@ -322,19 +341,19 @@ def play_hil_planner(
             # OmegaConf.update(cfg, "task.env_runner.n_obs_steps", 2, merge=False)
             # env_runner: BaseLowdimRunner
             # env_runner = hydra.utils.instantiate(
-            #     cfg.task.env_runner, output_dir="/home/eleyng/diffusion_policy/data/table/"
+            #     cfg.task.env_runner, output_dir="/home/collab1/diffusion_policy/data/table/"
             # )
             # runner_log = env_runner.run(policy)
             # step_log = dict()
             # step_log.update(runner_log)
             # wandb_run = wandb.init(
-            #     dir="/home/eleyng/diffusion_policy/data/table/test_runner",
+            #     dir="/home/collab1/diffusion_policy/data/table/test_runner",
             #     config=OmegaConf.to_container(cfg, resolve=True),
             #     **cfg.logging,
             # )
             # wandb.config.update(
             #     {
-            #         "output_dir": "/home/eleyng/diffusion_policy/data/table/test_runner",
+            #         "output_dir": "/home/collab1/diffusion_policy/data/table/test_runner",
             #     }
             # )
             # wandb_run.log(step_log, step=0)
@@ -347,7 +366,7 @@ def play_hil_planner(
         
         elif  planner_type == "cogail":
             # import models  from cogail
-            sys.path.append('/home/eleyng/cogail-table')
+            sys.path.append('/home/collab1/cogail-table')
             import os
 
             from a2c_ppo_acktr.model import Policy
@@ -368,13 +387,13 @@ def play_hil_planner(
             actor_critic.eval().to(device)
 
             # Load model
-            model_path = "/home/eleyng/table-carrying-ai/trained_models/cogail/model.pt"
+            model_path = "/home/collab1/table-carrying-ai/trained_models/cogail/model.pt"
             ckpt = torch.load(model_path)
             actor_critic.load_state_dict(ckpt)
 
         elif planner_type == "bc_lstm_gmm":
 
-            sys.path.append('/home/eleyng/robomimic')
+            sys.path.append('/home/collab1/robomimic')
             import robomimic.utils.file_utils as FileUtils
             import robomimic.utils.obs_utils as ObsUtils
             import robomimic.utils.tensor_utils as TensorUtils
@@ -383,9 +402,9 @@ def play_hil_planner(
             from robomimic.envs.env_base import EnvBase
 
             if mcfg.human_act_as_cond:
-                model_path = "/home/eleyng/table-carrying-ai/trained_models/bc_lstm_gmm/model_human_act_as_cond.pth"
+                model_path = "/home/collab1/table-carrying-ai/trained_models/bc_lstm_gmm/model_human_act_as_cond.pth"
             else:
-                model_path = "/home/eleyng/table-carrying-ai/trained_models/bc_lstm_gmm/model.pth"
+                model_path = "/home/collab1/table-carrying-ai/trained_models/bc_lstm_gmm/model.pth"
             policy, ckpt_dict = FileUtils.policy_from_checkpoint(ckpt_path=model_path, device=device, verbose=True)
             config, _ = FileUtils.config_from_checkpoint(ckpt_dict=ckpt_dict)
             rollout_horizon = config.experiment.rollout.horizon
@@ -451,8 +470,12 @@ def play_hil_planner(
 
     ### ---------------------------------------------------- GAME LOOP ---------------------------------------------------- ###
     plan_cter = 0
+    loop_timer_begin = time.time()
+    rate = rospy.Rate(FPS)
     start = time.time()
-    while running:
+    while running and not rospy.is_shutdown():
+        rospy.loginfo("OBS RATE")
+        
 
         loops = 0
 
@@ -628,13 +651,18 @@ def play_hil_planner(
                                     joint=coplanning,
                                 )
                             pid_actions /= np.linalg.norm(pid_actions)
-                            pid_actions[0] *= -1.0 ## TODO: CHECK THIS
+                            # pid_actions[0] *= -1.0 ## TODO: CHECK THIS
                             plan_cter += 1
 
                             if not coplanning:
                                 u_r = torch.from_numpy(
                                     np.clip(pid_actions, -1.0, 1.0)
                                 ).unsqueeze(0)
+
+                                u_r = torch.from_numpy(
+                                    playback_trajectory["actions"][n_iter, :2]
+                                ).unsqueeze(0)
+                                print("N_ITER", n_iter)
                                 u_all = torch.cat((u_r, u_h), dim=-1)
 
                             else:
@@ -754,7 +782,7 @@ def play_hil_planner(
                             u_all = torch.cat((u_r, u_h), dim=-1) # (1,4)
 
                 delta_plan = time.time() - start_plan
-                # print("Planning time: ", delta_plan)
+                print("Planning time: ", delta_plan)
                 delta_plan_sum += delta_plan
                 if display_pred and planner_type in ["vrnn"] and path is not None:
                     env.update_prediction(path.tolist())
@@ -763,7 +791,8 @@ def play_hil_planner(
 
                 # Sum forces, then multiply by scaling factor to get desired table velocity
                 duration = CONST_DT
-                p_des_vel = share_control(u_h, u_r, factor=f_scale)
+                p_des_vel = share_control(u_h.detach().numpy(), u_r.detach().numpy())
+                print("u_h", u_h, "u_r", u_r)
                 p_des_vel_x = p_des_vel[0]
                 p_des_vel_y = p_des_vel[1]
                 p_des_ang_vel_z = p_des_vel[2]
@@ -772,11 +801,19 @@ def play_hil_planner(
                 move(v_x=p_des_vel_x, v_y=p_des_vel_y, yaw=p_des_ang_vel_z, duration=1.0, curr_pub=pub_p_des_vel)
 
                 end_pub = time.time()
-                
+                print("des vel", p_des_vel)
                 print("sim pose: ", obs)
                 obs, reward, done, info = env.step(u_all.detach().numpy())
-                obs = mocap_pose_to_obs(obs, env.map_info, env.grid)
+                
+                obs, past_rod_center_vec = mocap_pose_to_obs(obs, env.map_info, env.grid, past_rod_center_vec)
+                env.table.x = obs[0]
+                env.table.y = obs[1]
+                env.redraw()
                 print("mocap pose: ", obs)
+                loop_time = time.time() - loop_timer_begin
+                print("loop time", loop_time)
+                loop_timer_begin = time.time()
+
                 if planner_type in ["diffusion_policy"]:
                     # obs_q[:-1,:] = obs_q[1:,:]
                     # obs_q[-1,:] = obs
@@ -863,6 +900,8 @@ def play_hil_planner(
                             pressed_keys.remove(event.key)
                     elif event.type == pygame.QUIT:
                         running = False
+
+        rate.sleep()
 
     stop = time.time()
     duration = stop - start

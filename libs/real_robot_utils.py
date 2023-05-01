@@ -14,6 +14,7 @@ from std_msgs.msg import Empty
 
 from cooperative_transport.gym_table.envs.custom_rewards import \
     custom_reward_function
+from cooperative_transport.gym_table.envs.utils import WINDOW_H, WINDOW_W
 
 # -------------------------------------------- INIT GLOBAL REAL WORLD PARAMS -------------------------------------------- #
 odom_1 = None
@@ -35,10 +36,18 @@ r1y = 0
 r2x = L_real
 r2y = 0
 # For map (all in meters) ## TODO: update these values
-MIN_X = -1.9
-MAX_X = 1.9
-MIN_Y = -1.2
-MAX_Y = 1.0
+MIN_X = -1.55 # -1.9
+MAX_X = 2.1 #1.9
+MAG_X = abs(MAX_X-MIN_X)
+MIN_Y = 1.78 #-1.15 #-1.2
+MAX_Y = -1.25 #1.9 #1.0
+MAG_Y = abs(MAX_Y-MIN_Y)
+sim2real_x_scale = max(MAG_X / WINDOW_W, 0.03)
+sim2real_y_scale = max(MAG_Y / WINDOW_H, 0.05)
+floor_scale = 20
+MAX_X_VEL = np.float(MAG_Y / floor_scale)
+MAX_Y_VEL = MAG_Y / floor_scale
+MAX_ANG_VEL = 0.1
 
 
 def move(v_x=0, v_y=0, yaw=0, duration=1.0, curr_pub=None):
@@ -64,12 +73,12 @@ def share_control(f1, f2, factor=0.1):
         f1, f2: 2D np.array or np.mat, each (2, 1)
         Return: Wrench (total F_x, F_y, T_z applied on table) np.array (3, 1)
         """
-        f1_mat = np.mat([
+        f1_mat = np.array([
             [1, 0],
             [0, 1],
             [-r1y, r1x]
         ])
-        f2_mat = np.mat([
+        f2_mat = np.array([
             [1, 0],
             [0, 1],
             [-r2y, r2x]
@@ -78,9 +87,12 @@ def share_control(f1, f2, factor=0.1):
         f1 = f1.reshape(2,1)
         f2 = f2.reshape(2,1)
 
-        return f1_mat @ f1 + f2_mat @ f2
-    des_wrench = get_wrench(f1, f2)
-    des_vel = des_wrench * factor
+        return np.array((f1_mat @ f1 + f2_mat @ f2).flatten())
+    des_wrench = get_wrench(f1, f2) # get sim wrench
+    des_x_vel = MAX_X_VEL if (min(MAX_X_VEL, np.abs(des_wrench[0] * sim2real_x_scale)) >= MAX_X_VEL) else (des_wrench[0] * sim2real_x_scale)
+    des_y_vel = MAX_Y_VEL if min(MAX_Y_VEL, np.abs(des_wrench[1] * sim2real_y_scale)) >= MAX_Y_VEL else des_wrench[1] * sim2real_y_scale
+    des_ang_vel = MAX_ANG_VEL if min(MAX_ANG_VEL, np.abs(des_wrench[2])) == MAX_ANG_VEL else des_wrench[2]
+    des_vel = np.array([des_x_vel, des_y_vel, des_ang_vel])
     return des_vel
 
 def euler_from_quaternion(x, y, z, w):

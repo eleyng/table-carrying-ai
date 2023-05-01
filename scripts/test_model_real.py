@@ -121,7 +121,7 @@ def main(exp_args, exp_name):
             display_gt=exp_args.display_gt,
             display_past_states=exp_args.display_past_states,
             include_interaction_forces_in_rewards=exp_args.include_interaction_forces_in_rewards,
-            device=torch.device("cuda") if exp_args.planner_type == "diffusion_policy" else "cpu",
+            device=torch.device('cpu'), #torch.device("cuda") if exp_args.planner_type == "diffusion_policy" else "cpu",
         )
 
         avg_plan_time_total += avg_plan_time
