@@ -9,7 +9,28 @@ from cooperative_transport.gym_table.envs.utils import (
     WINDOW_H,
     WINDOW_W,
 )
-
+def env_fn():
+    steps_per_render = max(10 // FPS, 1)
+    return MultiStepWrapper(
+        VideoRecordingWrapper(
+            FlattenObservation(
+                env
+            ),
+            video_recoder=VideoRecorder.create_h264(
+                fps=fps,
+                codec="h264",
+                input_pix_fmt="rgb24",
+                crf=22,
+                thread_type="FRAME",
+                thread_count=1,
+            ),
+            file_path=None,
+            steps_per_render=steps_per_render,
+        ),
+        n_obs_steps=cfg.n_obs_steps,
+        n_action_steps=cfg.n_action_steps,
+        max_episode_steps=2000,
+    )
 
 # ------------------------ VRNN Planner Utils  ------------------------
 """ For planner used in Ng, et al. Learning to Plan for Human-Robot Cooperative Carrying. (ICRA 2023)."""
@@ -31,6 +52,7 @@ def get_action_from_wrench(wrench, current_state, u_h):
         ],
     )
     F_des = np.linalg.pinv(G).dot(new_wrench)
+    # print("F_des: ", F_des)
     # f1_x, f1_y = F_des[0], F_des[1]
 
     return F_des  # in world frame
@@ -43,8 +65,8 @@ def get_joint_action_from_wrench(wrench, current_state):
     new_wz = wrench[2]
     new_wrench = np.array([new_wx, new_wy, new_wz]).T
     G = (
-        [1, 0, 0, 0],
-        [0, 1, 0, 0],
+        [1, 0, 1, 0],
+        [0, 1, 0, 1],
         [
             -L / 2.0 * np.sin(current_state[2]),
             -L / 2.0 * np.cos(current_state[2]),
@@ -86,8 +108,8 @@ def pid_single_step(
     error = curr_target - curr_state
     wrench = kp * error
     # Get actions from env
-    if u_h is None:
-        raise ValueError("u_h was never passed to pid.")
+    # if u_h is None:
+    #     raise ValueError("u_h was never passed to pid.")
     if joint:
         F_des_r = get_joint_action_from_wrench(wrench, curr_state)
     else:
@@ -99,34 +121,43 @@ def update_queue(a, x):
     return torch.cat([a[1:, :], x], dim=0)
 
 
-def tf2model(state_data):
-    print("state_data", state_data[0,:])
+def tf2model(state_data, obstacles, zero_padding=False):
     # must remove theta obs (last dim of state_data)
     # takes observation (only map info) and returns ego-centric vector to obs/goal for use in model
+    if obstacles.shape[0] < 3:
+        if zero_padding:
+            obstacles_filler = np.zeros(
+                shape=(3 - obstacles.shape[0], 2), dtype=np.float32
+            )
+        else:
+            num_fill = 3 - obstacles.shape[0]
+            obstacles_filler = np.tile(obstacles[-1, :], (num_fill, 1))
+        obstacles = np.concatenate(
+            (obstacles, obstacles_filler),
+            axis=0,
+        )
+    state_data = state_data.detach().numpy()
     state_xy = state_data[:, :2]
     state_th = state_data[:, 2:4]
     state_data_ego_pose = np.diff(state_xy, axis=0)
     state_data_ego_th = np.diff(state_th, axis=0)
     goal_lst = np.empty(shape=(state_data_ego_pose.shape[0], 2), dtype=np.float32)
-    obs_lst = np.empty(shape=(state_data_ego_pose.shape[0], 2), dtype=np.float32)
+    obs_lst = np.empty(shape=(state_data_ego_pose.shape[0], 6), dtype=np.float32)
+    p_ego2obs_world = np.empty(shape=(6, ), dtype=np.float32)
+    qo = 8
+    qg = 8
 
     for t in range(state_data_ego_pose.shape[0]):
-        p_ego2obs_world = state_data[t, 6:8] - state_xy[t, :]
-        # print("p_ego2obs_world", p_ego2obs_world.shape)
+        p_ego2obs_world[::2] = obstacles.flatten()[::2] - state_xy[t, 0]
+        p_ego2obs_world[1::2] = obstacles.flatten()[1::2] - state_xy[t, 1]
         p_ego2goal_world = state_data[t, 4:6] - state_xy[t, :]
-
-        cth = np.cos(state_data[t, 8])
-        sth = np.sin(state_data[t, 8])
-        # goal & obs in ego frame
-        obs_lst[t, 0] = cth * p_ego2obs_world[0] + sth * p_ego2obs_world[1]
-        obs_lst[t, 1] = -sth * p_ego2obs_world[0] + cth * p_ego2obs_world[1]
-
-        goal_lst[t, 0] = cth * p_ego2goal_world[0] + sth * p_ego2goal_world[1]
-        goal_lst[t, 1] = -sth * p_ego2goal_world[0] + cth * p_ego2goal_world[1]
-
-    qm = 8
-    goal_lst = goal_lst / qm
-    obs_lst = obs_lst / qm
+        cth = state_data[t, 2]
+        sth = state_data[t, 3]
+        # rotate goal & obs in ego frame
+        obs_lst[t, ::2] = np.asarray(cth * p_ego2obs_world[::2] + sth * p_ego2obs_world[1::2], dtype=np.float32) / qo
+        obs_lst[t, 1::2] = np.asarray(-sth * p_ego2obs_world[::2] + cth * p_ego2obs_world[1::2], dtype=np.float32) / qo
+        goal_lst[t, 0] = np.asarray(cth * p_ego2goal_world[0] + sth * p_ego2goal_world[1], dtype=np.float32) / qg
+        goal_lst[t, 1] = np.asarray(-sth * p_ego2goal_world[0] + cth * p_ego2goal_world[1], dtype=np.float32) / qg
 
     state = np.concatenate(
         (

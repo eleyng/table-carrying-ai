@@ -659,9 +659,9 @@ def play_hil_planner(
                                     np.clip(pid_actions, -1.0, 1.0)
                                 ).unsqueeze(0)
 
-                                u_r = torch.from_numpy(
-                                    playback_trajectory["actions"][n_iter, :2]
-                                ).unsqueeze(0)
+                                # u_r = torch.from_numpy(
+                                #     playback_trajectory["actions"][n_iter, :2]
+                                # ).unsqueeze(0)
                                 print("N_ITER", n_iter)
                                 u_all = torch.cat((u_r, u_h), dim=-1)
 
@@ -798,13 +798,15 @@ def play_hil_planner(
                 p_des_ang_vel_z = p_des_vel[2]
 
                 # Publish desired velocity
-                move(v_x=p_des_vel_x, v_y=p_des_vel_y, yaw=p_des_ang_vel_z, duration=1.0, curr_pub=pub_p_des_vel)
+                move_timer = time.time()
+                move(v_x=p_des_vel_x, v_y=p_des_vel_y, yaw=p_des_ang_vel_z, duration=CONST_DT, curr_pub=pub_p_des_vel)
+                print("move pub timer ", time.time() - move_timer)
 
                 end_pub = time.time()
                 print("des vel", p_des_vel)
                 print("sim pose: ", obs)
                 obs, reward, done, info = env.step(u_all.detach().numpy())
-                
+
                 obs, past_rod_center_vec = mocap_pose_to_obs(obs, env.map_info, env.grid, past_rod_center_vec)
                 env.table.x = obs[0]
                 env.table.y = obs[1]
