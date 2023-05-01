@@ -9,7 +9,7 @@ def get_planner_args(parser):
     parser.add_argument(
         "--artifact-path",
         type=str,
-        default="algo/planners/cooperative_planner/trained_models/vrnn_noact/model.ckpt",
+        default="trained_models/vrnn/model_no_padding.ckpt",
         help="Path to model checkpoint to load.",
     )
     parser.add_argument(
@@ -17,6 +17,12 @@ def get_planner_args(parser):
         type=str,
         default="vrnn",
         help="Type of model to train",
+    )
+    parser.add_argument(
+        "--human-act-as-cond",
+        action="store_true",
+        default=False,
+        help="Condition on human actions.",
     )
     parser.add_argument(
         "--H", type=int, default=30, help="Observation period length, H."
@@ -30,7 +36,7 @@ def get_planner_args(parser):
     parser.add_argument(
         "--BSIZE", type=int, default=16, help="Batch size for predictions."
     )
-    parser.add_argument("--skip", type=int, default=5, help="Frame skipping.")
+    parser.add_argument("--skip", type=int, default=1, help="Frame skipping.")
     parser.add_argument("--lookahead", type=int, default=1, help="N multiplier on the number of skip frames to plan ahead for.")
     parser.add_argument(
         "--n-layers",
