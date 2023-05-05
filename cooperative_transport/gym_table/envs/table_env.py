@@ -33,6 +33,8 @@ from cooperative_transport.gym_table.envs.utils import (
     STATE_W,
     WINDOW_H,
     WINDOW_W,
+    BUFFER_H,
+    BUFFER_W,
     debug_print,
     load_cfg,
     rad,
@@ -71,7 +73,13 @@ class TableEnv(gym.Env):
         else:
             print("Running with display.")
         pygame.init()
-        self.screen = pygame.display.set_mode(([WINDOW_W, WINDOW_H]))
+        if self.add_buffer:
+            self.screen = pygame.display.set_mode(
+                [WINDOW_W + 2 * BUFFER_W, WINDOW_H + 2 * BUFFER_H]
+                # [WINDOW_W, WINDOW_H]
+            )
+        else:
+            self.screen = pygame.display.set_mode(([WINDOW_W, WINDOW_H]))
         self.viewer = None
 
     def init_data_paths(self, map_config, run_mode, run_name):
@@ -129,9 +137,13 @@ class TableEnv(gym.Env):
 
     def init_env(self):
         self.init_pygame()
+        # Initialize the observation history
+        self.obs_hist = np.zeros(self.state_dim * self.seq_length, dtype=np.float32)
         self.n = 2  # number of players
         # load from saved env config file
-        if self.load_map is not None and self.run_mode == "eval":
+        if self.set_table is not None:
+            table_cfg = self.set_table
+        elif self.load_map is not None and self.run_mode == "eval":
             map_run = dict(np.load(self.load_map, allow_pickle=True))
             # table init pose
             table_cfg = [
@@ -170,27 +182,38 @@ class TableEnv(gym.Env):
         self.player_2 = Agent()
 
         # RANDOM OBSTACLE CONFIG
-        self.obs_dim = len(self.map_cfg["OBSTACLES"][0]["POSITIONS"])
+        self.obs_dim = len(self.map_cfg["OBSTACLES"]["POSITIONS"])
         self.num_obstacles = np.random.choice(range(1, self.max_num_obstacles + 1), 1)[
             0
         ]
         self.visible_obs = 1  # float(args["vis"])
 
-        # create obstacle
-        self.obs_lst_idx = random.sample(
-            range(0, len(self.map_cfg["OBSTACLES"][0]["POSITIONS"])), self.num_obstacles
-        )
+        
 
         if self.load_map is not None and self.run_mode == "eval":
             self.obs_lst_idx = obs_lst_cfg
             self.num_obstacles = num_obs_cfg
-        self.obs_lst = [
-            self.map_cfg["OBSTACLES"][0]["POSITIONS"][i] for i in self.obs_lst_idx
-        ]
+            
+
+        if self.set_obs is not None:
+            self.obs_lst_idx = [i for i in range(len(self.set_obs))]
+            self.obs_lst = self.set_obs  # [1]
+            print("set obs: ", self.obs_lst)
+            self.num_obstacles = len(self.set_obs)
+        else:
+            # create obstacle
+            self.obs_lst_idx = random.sample(
+                range(0, len(self.map_cfg["OBSTACLES"]["POSITIONS"])), self.num_obstacles
+            )
+
+            self.obs_lst = [
+                self.map_cfg["OBSTACLES"]["POSITIONS"][i] for i in self.obs_lst_idx
+            ]
 
         # initialize obstacles & obstacle sprites
         self.obstacles = np.zeros((self.num_obstacles, 2))
         self.obs_sprite = []
+
         for i in range(len(self.obs_lst)):
             obs = np.array(
                 [
@@ -201,7 +224,7 @@ class TableEnv(gym.Env):
             self.obstacles[i] = obs
             self.obs_sprite.append(
                 Obstacle(
-                    self.obstacles[i], size=self.map_cfg["OBSTACLES"][0]["SIZES"][0]
+                    self.obstacles[i], size=self.map_cfg["OBSTACLES"]["SIZES"][0]
                 )
             )
         self.obs_params = {}
@@ -223,6 +246,9 @@ class TableEnv(gym.Env):
         self.goal_params = {}
         self.goal_params["goal"] = self.goal
         debug_print("Goal configuration: ", self.goal_params)
+
+        # MAP CONFIG
+        self.map_info = np.concatenate((self.table_init, self.goal))
 
         # SAVE CONFIGURATION
         self.config_params = {}
@@ -261,59 +287,122 @@ class TableEnv(gym.Env):
             np.array([self.table.x, self.table.y, self.table.angle]), axis=0
         )
         self.update_metrics(table_state)
+        # reward = self.compute_reward(np.array([table_state]))
 
+        if self.occupancy_grid:
+            self.grid = self.make_occupancy_grid(WINDOW_H, WINDOW_W)
+        else:
+            self.grid = np.zeros((self.max_num_obstacles * 2))
+            self.grid[: self.obstacles.flatten().shape[0]] = self.obstacles.flatten()
         self.prev_time = time.time()
         self.observation = self.get_state()
+        self.full_observation = self.observation #.cpu().detach().numpy()
         self.n_step = 0
 
         self.cap = self.player_1.cap  # TODO: match force cap in game_objects
 
+    def init_rnd_seed_space(self):
+        self.random_seed_space = spaces.Box(-1.0, 1.0, (2,))
+
     def init_action_space(self):
         # ----------------------------------------------- Action and Observation Spaces -------------------------------------------------------------
-        # if self.control_type == "keyboard":
-        #     # define action space
-        #     self.action_space = spaces.Discrete(25)
-        # elif self.control_type == "joystick":
-        #     # continuous action space specified by two pairs of joystick axis
-        action_space_low = np.array([-1.0, -1.0, -1.0, -1.0])
-        action_space_high = np.array([1.0, 1.0, 1.0, 1.0])
-        self.action_space = spaces.Box(
-            action_space_low, action_space_high, dtype=np.float32
-        )
-        # else:
-        #     raise NotImplementedError("Unknown control type: %s" % self.control_type)
+        if self.control_type == "keyboard":
+            # define action space
+            self.action_space = spaces.Discrete(25)
+        elif self.control_type == "joystick":
+            # continuous action space specified by two pairs of joystick axis
+            action_space_low = np.array([-1.0, -1.0, -1.0, -1.0])
+            action_space_high = np.array([1.0, 1.0, 1.0, 1.0])
+            self.action_space = spaces.Box(
+                action_space_low, action_space_high, dtype=np.float32
+            )
+        else:
+            raise NotImplementedError("Unknown control type: %s" % self.control_type)
 
     def init_observation_space(self):
         # discrete observation space
         if self.obs_type == "discrete":
+            if not self.occupancy_grid:
+                obs_space_low = np.array(
+                    [0.0, 0.0, -1.0, -1.0, -50.0, -50.0, -np.pi / 2]
+                )
+                obs_space_low = np.tile(obs_space_low, self.seq_length)
+                map_dim_low = np.array(
+                    [
+                        0,
+                        0,
+                        -2 * np.pi,
+                        0,
+                        0,
+                    ]
+                )
+                grid_dim_low = np.zeros(shape=(self.max_num_obstacles * 2,))
+                self.obs_space_low = np.concatenate(
+                    (obs_space_low, map_dim_low, grid_dim_low)
+                ).astype(np.float32)
 
-            # define observation space
-            self.obs_space_low = np.array(
-                [
-                    0.0,  # x
-                    0.0,  # y
-                    -1.0,  # angle (cos(angle))
-                    -1.0,  # angle (sin(angle))
-                    0.0,  # target x
-                    0.0,  # target y
-                    0.0,  # x position of most relevant obstacle
-                    0.0,  # y position of most relevant obstacle
-                    -2 * np.pi,  # angle (without angle transform)
-                ]
-            )
-            self.obs_space_hi = np.array(
-                [
-                    WINDOW_W,
-                    WINDOW_H,
-                    1.0,
-                    1.0,
-                    WINDOW_W,
-                    WINDOW_H,
-                    WINDOW_W,
-                    WINDOW_H,
-                    2 * np.pi,
-                ]
-            )
+                obs_space_hi = np.array(
+                    [WINDOW_W, WINDOW_H, 1.0, 1.0, 50.0, 50.0, np.pi / 2]
+                )
+
+                obs_space_hi = np.tile(obs_space_hi, self.seq_length)
+                map_dim_hi = np.array(
+                    [
+                        WINDOW_W,
+                        WINDOW_H,
+                        2 * np.pi,
+                        WINDOW_W,
+                        WINDOW_H,
+                    ]
+                )
+                grid_dim_hi = np.tile(
+                    np.array([WINDOW_W, WINDOW_H]).flatten(), self.max_num_obstacles
+                )
+                self.obs_space_hi = np.concatenate(
+                    (obs_space_hi, map_dim_hi, grid_dim_hi)
+                ).astype(np.float32)
+
+            else:
+                self.map_dim_w = int(WINDOW_W / self.scale)
+                self.map_dim_h = int(WINDOW_H / self.scale)
+                self.occupancy_grid_dim = self.map_dim_w * self.map_dim_h
+
+                obs_space_low = np.array(
+                    [0.0, 0.0, -1.0, -1.0, -50.0, -50.0, -np.pi / 2]
+                )
+                obs_space_low = np.tile(obs_space_low, self.seq_length)
+                map_dim_low = np.array(
+                    [
+                        0,
+                        0,
+                        -2 * np.pi,
+                        0,
+                        0,
+                    ]
+                )
+                grid_dim_low = np.zeros(shape=(self.occupancy_grid_dim,))
+                self.obs_space_low = np.concatenate(
+                    (obs_space_low, map_dim_low, grid_dim_low)
+                ).astype(np.float32)
+
+                obs_space_hi = np.array(
+                    [WINDOW_W, WINDOW_H, 1.0, 1.0, 50.0, 50.0, np.pi / 2]
+                )
+
+                obs_space_hi = np.tile(obs_space_hi, self.seq_length)
+                map_dim_hi = np.array(
+                    [
+                        WINDOW_W,
+                        WINDOW_H,
+                        2 * np.pi,
+                        WINDOW_W,
+                        WINDOW_H,
+                    ]
+                )
+                grid_dim_hi = np.ones(shape=(self.occupancy_grid_dim,))
+                self.obs_space_hi = np.concatenate(
+                    (obs_space_hi, map_dim_hi, grid_dim_hi)
+                ).astype(np.float32)
 
         elif self.obs_type == "rgb":
             self.observation_space = spaces.Box(
@@ -333,19 +422,24 @@ class TableEnv(gym.Env):
 
     def __init__(
         self,
-        render_mode="gui",
+        render_mode="headless",
+        seq_length=1,
         obs="discrete",
         control="joystick",
-        map_config="cooperative_transport/gym_table/config/maps/rnd_obstacle_v2.yml",
+        map_config="/home/eleyng/diffusion_policy/diffusion_policy/env/cooperative_transport/gym_table/config/maps/rnd_obstacle_v2.yml",
         load_map=None,
+        occupancy_grid=False,
         run_mode="demo",
-        run_name="random",
+        run_name="mbrl",
         ep=0,
         dt=1 / 30,
-        state_dim=9,
+        state_dim=7,
         max_num_obstacles=3,
-        max_num_env_steps=1000,
+        max_num_env_steps=2000,
         include_interaction_forces_in_rewards=False,
+        set_obs=None,
+        set_table=None,
+        add_buffer=False,
     ) -> None:
         """
         Initialize the environment.
@@ -367,16 +461,25 @@ class TableEnv(gym.Env):
             state_dim:          (int) dimension of state
             max_num_obstacles:  (int) maximum number of obstacles
             max_num_env_steps:  (int) maximum number of environment steps per episode
+            set_obs:            (list) set the obstacles in the environment
         """
+        self.add_buffer = add_buffer
+        self.set_obs = set_obs
+        self.set_table = set_table
         self.ep_length = max_num_env_steps
         self.state_dim = state_dim
+        self.seq_length = seq_length
         self.render_mode = render_mode
+        self.occupancy_grid = occupancy_grid
+        if self.occupancy_grid:
+            self.grid = None
         self.dist2wall_list = None
         self.dist2wall = None
         self.avoid = None
         self.done = None
         self.delta_t = dt
         self.n = None
+        self.velocity_cap = None
         self.cap = None
         self.n_step = None
         self.observation = None
@@ -431,6 +534,7 @@ class TableEnv(gym.Env):
         self.data = []
         # synthetic data
         self.init_data_paths(map_config, run_mode, run_name)
+        self.interact_mode = True
 
         self.cumulative_reward = 0  # episode's cumulative reward
         self.fluency = {
@@ -443,6 +547,9 @@ class TableEnv(gym.Env):
 
         self.load_map = load_map
         self.run_mode = run_mode
+        self.scale = 100
+
+        self.init_rnd_seed_space()
         if self.run_mode == "demo":
             self.vectorized = False
         else:
@@ -458,6 +565,12 @@ class TableEnv(gym.Env):
             )  # FIXED: actions converted to continuous before being passed to set_action_joystick
         elif self.control_type in ["joystick", "data", "policy"]:
             return set_action_joystick(action)
+
+    def start_eval(self):
+        self.eval_mode = True
+
+    def stop_eval(self):
+        self.eval_mode = False
 
     def step(
         self, action: List[np.ndarray]
@@ -558,6 +671,29 @@ class TableEnv(gym.Env):
             self.redraw()
 
         # return self.observation, reward, self.done, info
+        ### TODO: fix for co-gail
+        self.linspace = np.linspace(-0.8, 0.8, 5)
+        self.pivot = torch.FloatTensor(
+            np.array([[i, j] for i in self.linspace for j in self.linspace])
+        ).view(
+            -1, 2
+        )  ## TODO: figure out what this is
+        self.pivot_num = len(self.pivot)
+        self.pivot_id = 0
+
+        replay = False
+        self.pivot_id = (self.pivot_id + 1) % self.pivot_num
+        self.random_variable_noise = torch.FloatTensor(
+            np.array([random.uniform(-0.2, 0.2), random.uniform(-0.2, 0.2)])
+        ).view(1, 2)
+        self.random_variable = (
+            self.pivot[self.pivot_id].view(1, 2) + self.random_variable_noise
+        )
+
+        # return self.get_state(), torch.FloatTensor([[float(reward)],]), [self.done], [info], self.random_variable
+        # return self.get_state(), torch.FloatTensor([[float(self.success)],]), [self.done], [info], self.random_variable
+
+        # returns obs, reward, success, done, infos, random_seed
 
         if self.success:
             print(
@@ -839,7 +975,33 @@ class TableEnv(gym.Env):
 
         self.data = []
 
-        return self.get_state()
+        ### TODO: fix for co-gail
+        self.linspace = np.linspace(-0.8, 0.8, 5)
+        self.pivot = torch.FloatTensor(
+            np.array([[i, j] for i in self.linspace for j in self.linspace])
+        ).view(
+            -1, 2
+        )  ## TODO: figure out what this is
+        self.pivot_num = len(self.pivot)
+        self.pivot_id = 0
+
+        replay = False
+        mbrl = True
+        self.pivot_id = (self.pivot_id + 1) % self.pivot_num
+        self.random_variable_noise = torch.FloatTensor(
+            np.array([random.uniform(-0.2, 0.2), random.uniform(-0.2, 0.2)])
+        ).view(1, 2)
+        self.random_variable = (
+            self.pivot[self.pivot_id].view(1, 2) + self.random_variable_noise
+        )
+        # print("code:", self.random_variable)
+
+        # if replay: # for cogail
+        #     human_action_return = torch.FloatTensor([[0.0, 0.0]])
+        #     return self.get_state(), self.random_variable, human_action_return
+        # else:
+        #     return self.get_state(), self.random_variable
+        return self.get_state()  # , self.done
 
     def mp_check_collision_and_success(self, state) -> bool:
         """Check for collisions and success.
@@ -883,9 +1045,7 @@ class TableEnv(gym.Env):
                 debug_print("HIT OBSTACLE")
         else:
             # wall collision
-            if (
-                not self.screen.get_rect().contains(self.table)
-            ):
+            if not self.screen.get_rect().contains(self.table):
 
                 collision = True
                 debug_print("HIT WALL")
@@ -958,7 +1118,7 @@ class TableEnv(gym.Env):
             img = cv.cvtColor(img4disp, cv.COLOR_BGR2RGB)
             img = Image.fromarray(img)
             img = img.resize((WINDOW_W, WINDOW_H))
-            img.save(os.path.join(self.dirname_vis_ep, str(self.n_step) + ".png"))
+            # img.save(os.path.join(self.dirname_vis_ep, str(self.n_step) + ".png"))
 
         if mode == "human":
             pass
@@ -1006,7 +1166,10 @@ class TableEnv(gym.Env):
 
     def get_state(self) -> np.ndarray:
         if self.obs_type == "discrete":
-            return self._get_discrete_state()
+            if not self.occupancy_grid:
+                return self._get_discrete_state()
+            else:
+                return self._get_discrete_state_map()
         elif self.obs_type == "rgb":
             return self._get_rgb_state()
 
@@ -1023,13 +1186,110 @@ class TableEnv(gym.Env):
         state[1] = self.table.y
         state[2] = np.cos(self.table.angle)  # self.table.angle  #
         state[3] = np.sin(self.table.angle)  # self.target.x  #
-        state[4] = self.target.x
-        state[5] = self.target.y  # self.dist2goal
-        dist2obs = np.linalg.norm(self.avoid, axis=1)
-        most_relevant_obs_idx = np.argmin(dist2obs)
-        most_relevant_obs = self.obstacles[most_relevant_obs_idx]
-        state[6] = most_relevant_obs[0]
-        state[7] = most_relevant_obs[1]
-        state[8] = self.table.angle
+        state[4] = self.table.x_speed
+        state[5] = self.table.y_speed
+        state[6] = self.table.angle_speed
 
-        return state
+        self.obs_hist[: -self.state_dim] = self.obs_hist[self.state_dim :]
+        self.obs_hist[-self.state_dim :] = state
+
+        self.full_observation = np.concatenate(
+            (self.obs_hist, self.map_info, self.grid)
+        )
+
+        return self.full_observation
+
+    def _get_discrete_state_map(self) -> np.ndarray:
+        """Gets the player state.
+
+        Returns
+        -------
+        state : np.ndarray, shape=(self.state_dim + occ_grid_dim)
+            The state.
+        """
+        state = np.zeros(
+            shape=(self.state_dim,), dtype=np.float32
+        )  # self.occupancy_grid is the dimension of the self.WINDOW_W * self.WINDOW_H / (self.occ_grid_scale ** 2), where self.occ_grid_scale = 10
+        state[0] = self.table.x
+        state[1] = self.table.y
+        state[2] = np.cos(self.table.angle)  # self.table.angle  #
+        state[3] = np.sin(self.table.angle)  # self.target.x  #
+        state[4] = self.table.x_speed
+        state[5] = self.table.y_speed
+        state[6] = self.table.angle_speed
+
+        self.obs_hist[: -self.state_dim] = self.obs_hist[self.state_dim :]
+        self.obs_hist[-self.state_dim :] = state
+
+        self.full_observation = np.concatenate(
+            (self.obs_hist, self.map_info, self.grid)
+        )
+
+        return torch.from_numpy(self.full_observation).float()
+
+    def make_occupancy_grid(
+        self, WINDOW_W=1200, WINDOW_H=600, buffer_size=50, obs_size=100, scale=100
+    ):
+        ### UNCOMMENT FOR OCCUPANCY GRID
+        obs_w = obs_size / WINDOW_W
+        obs_h = obs_size / WINDOW_H
+        buffer_w = buffer_size / WINDOW_W
+        buffer_h = buffer_size / WINDOW_H
+        map_dim_w = int(WINDOW_W / scale)
+        map_dim_h = int(WINDOW_H / scale)
+        occGrid = np.zeros(map_dim_w * map_dim_h)
+        gridPointsRange_w = np.linspace(0, 1, num=map_dim_w)
+        gridPointsRange_h = np.linspace(0, 1, num=map_dim_h)
+        # process obstacle data into occupancy grid
+        occGridSamples = np.zeros([map_dim_w * map_dim_h, 2])
+        idx = 0
+        for i in gridPointsRange_w:
+            for j in gridPointsRange_h:
+                occGridSamples[idx, 0] = i
+                occGridSamples[idx, 1] = j
+                # print(occGridSamples[idx,:])
+                idx += 1
+        scaled_obs = []
+        for idx in range(self.obstacles.flatten().shape[0]):
+            if idx % 2 == 0:
+                osc = self.obstacles.flatten()[idx] / WINDOW_W
+            else:
+                osc = self.obstacles.flatten()[idx] / WINDOW_H
+            scaled_obs.append(osc)
+        scaled_obs_lst = np.asarray(scaled_obs, dtype=np.float32)
+        occGrid = np.zeros(map_dim_w * map_dim_h)
+        for i in range(0, map_dim_w * map_dim_h):
+            # print("checking:", i, occGridSamples[i, :])
+            occGrid[i] = self.isSampleFree(
+                occGridSamples[i, :],
+                scaled_obs_lst,
+                obs_dim=2,
+                obs_w=obs_w,
+                obs_h=obs_h,
+                buffer_w=buffer_w,
+                buffer_h=buffer_h,
+            )
+        occGrid = np.asarray(occGrid, dtype=np.float32)
+        return occGrid
+
+    def isSampleFree(
+        self,
+        grid_position,
+        obs_pos_lst,
+        obs_dim=2,
+        obs_w=None,
+        obs_h=None,
+        buffer_w=None,
+        buffer_h=None,
+    ):
+        # loop thru each obstacle, return 0 for the grd pos if occupied (incl buffer consideration)
+        for o in range(0, int(obs_pos_lst.shape[0] / obs_dim)):
+            # check obs boundaries -- x
+            x_lo = grid_position[0] >= (obs_pos_lst[o * obs_dim] - obs_w - buffer_w)
+            x_hi = grid_position[0] <= (obs_pos_lst[o * obs_dim] + obs_w + buffer_w)
+            y_lo = grid_position[1] >= (obs_pos_lst[o * obs_dim + 1] - obs_h - buffer_h)
+            y_hi = grid_position[1] <= (obs_pos_lst[o * obs_dim + 1] + obs_h + buffer_h)
+
+            if x_lo and x_hi and y_lo and y_hi:
+                return 0
+        return 1

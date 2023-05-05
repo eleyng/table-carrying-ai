@@ -7,9 +7,17 @@ import numpy as np
 import pygame
 from PIL import Image
 
-from cooperative_transport.gym_table.envs.utils import (VERBOSE, WINDOW_H,
-                                                        WINDOW_W, I, L, b, d,
-                                                        debug_print, m)
+from cooperative_transport.gym_table.envs.utils import (
+    VERBOSE,
+    WINDOW_H,
+    WINDOW_W,
+    I,
+    L,
+    b,
+    d,
+    debug_print,
+    m,
+)
 
 
 class Obstacle(pygame.sprite.Sprite):

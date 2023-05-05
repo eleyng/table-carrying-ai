@@ -9,7 +9,7 @@ VERBOSE = False  # Set to True to print debug info
 # game loop parameters
 FPS = 30  # frames per second max limited to this when rendering in game loop
 CONST_DT = 1 / FPS  # constant time step for physics
-MAX_FRAMESKIP = 10  # Min Render FPS = FPS / max_frameskip, i.e. framerate can drop until min render FPS
+MAX_FRAMESKIP = 3  # Min Render FPS = FPS / max_frameskip, i.e. framerate can drop until min render FPS
 
 # pygame physics parameters
 m = 2.0  # mass of the table
@@ -28,6 +28,8 @@ ORANGE = (255, 167, 15)
 GREEN = (100, 183, 105)
 WINDOW_W = 1200
 WINDOW_H = 600
+BUFFER_W = 45
+BUFFER_H = 45
 STATE_W = 256
 STATE_H = 256
 rad = np.pi / 180.0
@@ -302,6 +304,10 @@ def set_action_keyboard(action):
 def set_action_joystick(action):
     u = np.zeros((2, 2))
 
+    if not isinstance(action, list):
+        if len(action.shape) == 2:
+            action = action.flatten()
+
     # player 1 acts
     u[0, 0] = action[0]
     u[0, 1] = action[1]
@@ -347,3 +353,70 @@ def get_keys_to_action():
     keys_to_action[(ord("s"), pygame.K_DOWN)] = 24
 
     return keys_to_action
+
+def make_occupancy_grid(
+    obstacles, WINDOW_W=1200, WINDOW_H=600, buffer_size=50, obs_size=100, scale=100
+):
+    def isSampleFree(
+        grid_position,
+        obs_pos_lst,
+        obs_dim=2,
+        obs_w=None,
+        obs_h=None,
+        buffer_w=None,
+        buffer_h=None,
+    ):
+        # loop thru each obstacle, return 0 for the grd pos if occupied (incl buffer consideration)
+        for o in range(0, int(obs_pos_lst.shape[0] / obs_dim)):
+            # check obs boundaries -- x
+            x_lo = grid_position[0] >= (obs_pos_lst[o * obs_dim] - obs_w - buffer_w)
+            x_hi = grid_position[0] <= (obs_pos_lst[o * obs_dim] + obs_w + buffer_w)
+            y_lo = grid_position[1] >= (obs_pos_lst[o * obs_dim + 1] - obs_h - buffer_h)
+            y_hi = grid_position[1] <= (obs_pos_lst[o * obs_dim + 1] + obs_h + buffer_h)
+
+            if x_lo and x_hi and y_lo and y_hi:
+                return 0
+        return 1
+    ### UNCOMMENT FOR OCCUPANCY GRID
+    obs_w = obs_size / WINDOW_W
+    obs_h = obs_size / WINDOW_H
+    buffer_w = buffer_size / WINDOW_W
+    buffer_h = buffer_size / WINDOW_H
+    map_dim_w = int(WINDOW_W / scale)
+    map_dim_h = int(WINDOW_H / scale)
+    occGrid = np.zeros(map_dim_w * map_dim_h)
+    gridPointsRange_w = np.linspace(0, 1, num=map_dim_w)
+    gridPointsRange_h = np.linspace(0, 1, num=map_dim_h)
+    # process obstacle data into occupancy grid
+    occGridSamples = np.zeros([map_dim_w * map_dim_h, 2])
+    idx = 0
+    for i in gridPointsRange_w:
+        for j in gridPointsRange_h:
+            occGridSamples[idx, 0] = i
+            occGridSamples[idx, 1] = j
+            # print(occGridSamples[idx,:])
+            idx += 1
+    scaled_obs = []
+    for idx in range(obstacles.flatten().shape[0]):
+        if idx % 2 == 0:
+            osc = obstacles.flatten()[idx] / WINDOW_W
+        else:
+            osc = obstacles.flatten()[idx] / WINDOW_H
+        scaled_obs.append(osc)
+    scaled_obs_lst = np.asarray(scaled_obs, dtype=np.float32)
+    occGrid = np.zeros(map_dim_w * map_dim_h)
+    for i in range(0, map_dim_w * map_dim_h):
+        # print("checking:", i, occGridSamples[i, :])
+        occGrid[i] = isSampleFree(
+            occGridSamples[i, :],
+            scaled_obs_lst,
+            obs_dim=2,
+            obs_w=obs_w,
+            obs_h=obs_h,
+            buffer_w=buffer_w,
+            buffer_h=buffer_h,
+        )
+    occGrid = np.asarray(occGrid, dtype=np.float32)
+    return occGrid
+
+

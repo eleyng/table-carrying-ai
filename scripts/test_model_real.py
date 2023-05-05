@@ -16,6 +16,11 @@ from configs.robot.robot_planner_config import get_planner_args
 from cooperative_transport.gym_table.envs.utils import (CONST_DT, FPS,
                                                         WINDOW_H, WINDOW_W)
 
+import rospy
+from geometry_msgs.msg import PoseStamped
+from sensor_msgs.msg import Joy
+
+
 VERBOSE = False  # Set to True to print debug info
 FPS = 30
 CONST_DT = 1.0 / FPS
@@ -28,6 +33,12 @@ def main(exp_args, exp_name):
     torch.manual_seed(SEED)
     torch.cuda.manual_seed(SEED)
     np.random.seed(SEED)
+
+    # ROS stuff
+    
+
+    # Initialize node
+    rospy.init_node("locobot" + "_coop_carry")
 
     # ------------------------ Human Options ------------------------
     # Human play can be interactive, or come from data.
@@ -76,7 +87,7 @@ def main(exp_args, exp_name):
         match = [map for map in MAP_FILES if ep in map.split("/")[-1]]
 
         if exp_args.planner_type == "cogail":
-            seq_length = 30
+            seq_length = 15
             from cooperative_transport.gym_table.envs.table_env_cogail import \
                 TableEnv
         else:
@@ -88,7 +99,8 @@ def main(exp_args, exp_name):
         # elif exp_args.planner_type == "bc_lstm_gmm":
         #     from libs.hil_methods_bc_lstm_gmm import play_hil_planner
         else:
-            from libs.hil_real_robot import play_hil_planner
+            # from libs.hil_real_robot import play_hil_planner
+            from libs.hil_real_robot import Real_HIL_Runner
 
         env = TableEnv(
             render_mode=exp_args.render_mode,
@@ -103,8 +115,9 @@ def main(exp_args, exp_name):
             add_buffer=exp_args.add_buffer,
         )
         
-        trajectory, success, n_iter, duration, avg_plan_time = play_hil_planner(
-            env,
+
+        real_robot_env_runner = Real_HIL_Runner(
+            env=env,
             exp_run_mode=exp_args.run_mode,
             human=exp_args.human_mode,
             robot=robot_control,
@@ -121,8 +134,13 @@ def main(exp_args, exp_name):
             display_gt=exp_args.display_gt,
             display_past_states=exp_args.display_past_states,
             include_interaction_forces_in_rewards=exp_args.include_interaction_forces_in_rewards,
-            device=torch.device('cpu'), #torch.device("cuda") if exp_args.planner_type == "diffusion_policy" else "cpu",
+            device=torch.device("cuda") if exp_args.planner_type == "diffusion_policy" else "cpu",
         )
+        rospy.Subscriber("/vrpn_client_node/table_carried/pose", PoseStamped, real_robot_env_runner.mocap_cb)
+        rospy.Subscriber("/joy", Joy, real_robot_env_runner.human_action_cb, queue_size=1)
+
+
+        trajectory, success, n_iter, duration, avg_plan_time = real_robot_env_runner.play_hil_planner()
 
         avg_plan_time_total += avg_plan_time
 

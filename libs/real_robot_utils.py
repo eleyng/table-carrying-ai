@@ -10,23 +10,23 @@ import numpy as np
 import rospy
 from geometry_msgs.msg import PoseStamped, Twist, Vector3
 from nav_msgs.msg import Odometry
-from std_msgs.msg import Empty
+from std_msgs.msg import Empty, Float64MultiArray
 
 from cooperative_transport.gym_table.envs.custom_rewards import \
     custom_reward_function
-from cooperative_transport.gym_table.envs.utils import WINDOW_H, WINDOW_W
+from cooperative_transport.gym_table.envs.utils import WINDOW_H, WINDOW_W, init_joystick
 
 # -------------------------------------------- INIT GLOBAL REAL WORLD PARAMS -------------------------------------------- #
 odom_1 = None
 odom_2 = None
 robot_name_1 = "locobot1"
 robot_name_2 = "locobot2"
-if not rospy.has_param("/" + robot_name_1 + "/use_base") or rospy.get_param("/" + robot_name_1 + "/use_base") == False:
-    print("Error: robot name not found...")
-    exit(0)
-if not rospy.has_param("/" + robot_name_2 + "/use_base") or rospy.get_param("/" + robot_name_2 + "/use_base") == False:
-    print("Error: robot name not found...")
-    exit(0)
+# if not rospy.has_param("/" + robot_name_1 + "/use_base") or rospy.get_param("/" + robot_name_1 + "/use_base") == False:
+#     print("Error: robot name not found...")
+#     exit(0)
+# if not rospy.has_param("/" + robot_name_2 + "/use_base") or rospy.get_param("/" + robot_name_2 + "/use_base") == False:
+#     print("Error: robot name not found...")
+#     exit(0)
 
 # REAL WORLD PARAMETERS
 # For locobot point P control i.e. distance from robot control point to center:
@@ -39,18 +39,28 @@ r2y = 0
 MIN_X = -1.55 # -1.9
 MAX_X = 2.1 #1.9
 MAG_X = abs(MAX_X-MIN_X)
-MIN_Y = 1.78 #-1.15 #-1.2
-MAX_Y = -1.25 #1.9 #1.0
+MIN_Y = -1.171 #-1.15 #-1.2
+MAX_Y =  1.8 #1.9 #1.0
 MAG_Y = abs(MAX_Y-MIN_Y)
-sim2real_x_scale = max(MAG_X / WINDOW_W, 0.03)
-sim2real_y_scale = max(MAG_Y / WINDOW_H, 0.05)
 floor_scale = 20
-MAX_X_VEL = np.float(MAG_Y / floor_scale)
-MAX_Y_VEL = MAG_Y / floor_scale
-MAX_ANG_VEL = 0.1
+MAX_X_VEL_SIM = 50
+MAX_Y_VEL_SIM = 30
+MAX_ANG_VEL_SIM = 0.6
+pix_unit_real_x = MAG_X / WINDOW_W
+pix_unit_real_y = MAG_Y / WINDOW_H
+MAX_X_VEL = MAX_X_VEL_SIM * pix_unit_real_x
+MAX_Y_VEL = MAX_Y_VEL_SIM * pix_unit_real_y
+MAX_ANG_VEL = MAX_ANG_VEL_SIM
+MAX_ABS_VEL = np.linalg.norm([MAX_X_VEL, MAX_Y_VEL])
 
 
-def move(v_x=0, v_y=0, yaw=0, duration=1.0, curr_pub=None):
+obs_real_dim_x = 45 * pix_unit_real_x
+obs_real_dim_y = 45 * pix_unit_real_y
+
+# sim2real_x_scale = max(MAG_X / WINDOW_W, 0.5) #0.3)
+# sim2real_y_scale = max(MAG_Y / WINDOW_H, 0.7) #0.5)
+
+def move(v_x=0, v_y=0, yaw=0, duration=1/30, curr_pub=None):
     """ Move robot for a certain duration by publishing velocity command
     v_x, v_y, yaw: desired velocity and yaw
     duration: duration of movement
@@ -61,7 +71,21 @@ def move(v_x=0, v_y=0, yaw=0, duration=1.0, curr_pub=None):
     while (rospy.get_time() < (time_start + duration)):
         curr_pub.publish(Twist(linear=Vector3(x=v_x, y=v_y), angular=Vector3(z=yaw)))
         r.sleep()
-    curr_pub.publish(Twist())
+    # curr_pub.publish(Twist())
+
+def send_plan(plan=None, duration=1/30, curr_pub=None):
+    """ Send a plan of actions to the robot
+    action_plan: Float64MultiArray of shape (n, 4) where n is the number of actions
+    duration: duration of movement
+    curr_pub: publisher to publish velocity command
+    """
+    time_start = rospy.get_time()
+    r = rospy.Rate(30)
+    while (rospy.get_time() < (time_start + duration)):
+        print(plan, plan.shape, type(plan))
+        curr_pub.publish(Float64MultiArray(data=plan))
+        r.sleep()
+    # curr_pub.publish(Twist())
 
 def share_control(f1, f2, factor=0.1):
     """ Return commanded desired table velocity given two forces applied on it
@@ -88,11 +112,18 @@ def share_control(f1, f2, factor=0.1):
         f2 = f2.reshape(2,1)
 
         return np.array((f1_mat @ f1 + f2_mat @ f2).flatten())
+    f1[:, 1] *= -1
+    f2[:, 1] *= -1
     des_wrench = get_wrench(f1, f2) # get sim wrench
-    des_x_vel = MAX_X_VEL if (min(MAX_X_VEL, np.abs(des_wrench[0] * sim2real_x_scale)) >= MAX_X_VEL) else (des_wrench[0] * sim2real_x_scale)
-    des_y_vel = MAX_Y_VEL if min(MAX_Y_VEL, np.abs(des_wrench[1] * sim2real_y_scale)) >= MAX_Y_VEL else des_wrench[1] * sim2real_y_scale
-    des_ang_vel = MAX_ANG_VEL if min(MAX_ANG_VEL, np.abs(des_wrench[2])) == MAX_ANG_VEL else des_wrench[2]
+    norm_vel = np.linalg.norm([des_wrench[0], des_wrench[1]])
+    norm_vel_x = (des_wrench[0] / norm_vel)
+    norm_vel_y = (des_wrench[1] / norm_vel)
+    
+    des_x_vel = MAX_X_VEL if np.abs(norm_vel_x * MAX_ABS_VEL) >= MAX_X_VEL else norm_vel * MAX_ABS_VEL # if (min(MAX_X_VEL, np.abs(des_wrench[0])) >= MAX_X_VEL) else (des_wrench[0])
+    des_y_vel = MAX_Y_VEL if np.abs(norm_vel_y * MAX_ABS_VEL) >= MAX_Y_VEL else norm_vel * MAX_ABS_VEL # if min(MAX_Y_VEL, np.abs(des_wrench[1])) >= MAX_Y_VEL else (des_wrench[1])
+    des_ang_vel = MAX_ANG_VEL if np.abs(des_wrench[2]) >= MAX_ANG_VEL else des_wrench[2]
     des_vel = np.array([des_x_vel, des_y_vel, des_ang_vel])
+
     return des_vel
 
 def euler_from_quaternion(x, y, z, w):
@@ -118,8 +149,8 @@ def euler_from_quaternion(x, y, z, w):
     return roll_x, pitch_y, yaw_z # in radian
 
 def reset_odom():
-    reset_odom_1 = rospy.Publisher("/" + robot_name_1 + "/mobile_base/commands/reset_odometry", Empty, queue_size=10)
-    reset_odom_2 = rospy.Publisher("/" + robot_name_2 + "/mobile_base/commands/reset_odometry", Empty, queue_size=10)
+    reset_odom_1 = rospy.Publisher("/" + robot_name_1 + "/mobile_base/commands/reset_odometry", Empty, queue_size=1)
+    reset_odom_2 = rospy.Publisher("/" + robot_name_2 + "/mobile_base/commands/reset_odometry", Empty, queue_size=1)
     # reset odometry (these messages take a few iterations to get through)
     timer = time.time()
     while time.time() - timer < 0.25:
