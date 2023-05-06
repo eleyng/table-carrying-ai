@@ -99,8 +99,9 @@ def main(exp_args, exp_name):
         # elif exp_args.planner_type == "bc_lstm_gmm":
         #     from libs.hil_methods_bc_lstm_gmm import play_hil_planner
         else:
+            pass
             # from libs.hil_real_robot import play_hil_planner
-            from libs.hil_real_robot import Real_HIL_Runner
+        from libs.hil_real_robot import Real_HIL_Runner
 
         env = TableEnv(
             render_mode=exp_args.render_mode,
@@ -134,7 +135,7 @@ def main(exp_args, exp_name):
             display_gt=exp_args.display_gt,
             display_past_states=exp_args.display_past_states,
             include_interaction_forces_in_rewards=exp_args.include_interaction_forces_in_rewards,
-            device=torch.device("cuda") if exp_args.planner_type == "diffusion_policy" else "cpu",
+            device="cpu", #torch.device("cuda") if exp_args.planner_type == "diffusion_policy" else "cpu",
         )
         rospy.Subscriber("/vrpn_client_node/table_carried/pose", PoseStamped, real_robot_env_runner.mocap_cb)
         rospy.Subscriber("/joy", Joy, real_robot_env_runner.human_action_cb, queue_size=1)

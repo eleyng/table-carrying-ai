@@ -30,7 +30,7 @@ robot_name_2 = "locobot2"
 
 # REAL WORLD PARAMETERS
 # For locobot point P control i.e. distance from robot control point to center:
-L_real = 0.13 # meters
+L_real = .305 #0.13 # meters
 r1x = -L_real
 r1y = 0
 r2x = L_real

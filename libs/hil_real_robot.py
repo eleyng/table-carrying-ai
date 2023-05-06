@@ -39,7 +39,7 @@ from libs.real_robot_utils import (reset_odom, euler_from_quaternion,
 
 
 
-
+SKIP_FRAME = 3
 
 class Real_HIL_Runner(object):
     """
@@ -149,7 +149,10 @@ class Real_HIL_Runner(object):
 
     def human_action_cb(self, msg):
         self.u_h_cb = np.array([-msg.axes[0], msg.axes[1]], dtype=np.float32)
-        self.u_h_cb /= np.linalg.norm(self.u_h_cb)
+        if np.linalg.norm(self.u_h_cb) == 0.:
+            pass
+        else:
+            self.u_h_cb /= np.linalg.norm(self.u_h_cb)
 
     def transform_lookup(self, frame_parent=None, frame_child=None, time=rospy.Time(), past_time=None):
         """ Return transform from frame_parent to frame_child
@@ -224,7 +227,7 @@ class Real_HIL_Runner(object):
         if self.planner_type == "cogail":
             obs_hist = self.env.obs_hist
             obs_hist[: -self.env.state_dim] = obs_hist[self.env.state_dim :]
-            obs_hist[-self.env.state_dim :] = new_obs
+            obs_hist[-self.env.state_dim :] = new_obs[ : self.env.state_dim]
             new_obs = np.concatenate((obs_hist, self.env.map_info, self.env.grid))
 
         return new_obs, past_rod_center_vec, past_rod_center_pose
@@ -373,16 +376,16 @@ class Real_HIL_Runner(object):
                 policy = workspace.model
                 
                 policy.eval().to(self.device)
-                policy.num_inference_steps = 16
+                policy.num_inference_steps = 34
                 policy.n_action_steps = policy.horizon - policy.n_obs_steps + 1
 
-                global FPS, CONST_DT, MAX_FRAMESKIP, SKIP_FRAME
+                # global FPS, CONST_DT, MAX_FRAMESKIP, SKIP_FRAME
 
-                FPS = 30 # ticks per second
-                new_fps = 10
-                CONST_DT = 1/FPS #1/FPS # self.skip ticks
-                MAX_FRAMESKIP = 3 # max frames to self.skip
-                SKIP_FRAME = FPS // new_fps
+                # FPS = 30 # ticks per second
+                # new_fps = 10
+                # CONST_DT = 1/FPS #1/FPS # self.skip ticks
+                # MAX_FRAMESKIP = 3 # max frames to self.skip
+                # SKIP_FRAME = FPS // new_fps
                 steps_per_render = max(10 // FPS, 1)
                 
                 def env_fn():
@@ -392,7 +395,7 @@ class Real_HIL_Runner(object):
                                 self.env
                             ),
                             video_recoder=VideoRecorder.create_h264(
-                                fps=fps,
+                                fps=FPS,
                                 codec="h264",
                                 input_pix_fmt="rgb24",
                                 crf=22,
@@ -469,7 +472,7 @@ class Real_HIL_Runner(object):
             obs = obs[0]
         if self.planner_type in ["bc_lstm_gmm"]:
             obs_q = np.tile(obs, (30, 1))
-            past_action = np.zeros((a_horizon, 4)) if self.planner_type == "diffusion_policy" else np.zeros_like(obs.squeeze())[..., :4]
+            past_action = np.zeros_like(obs.squeeze())[..., :4]
         elif self.planner_type in ["diffusion_policy"]:
             obs_model = np.tile(copy.deepcopy(obs), (SKIP_FRAME, 1))
             past_action = np.zeros(obs_model.shape)[..., :4]
@@ -544,7 +547,7 @@ class Real_HIL_Runner(object):
         
         action_plan = None
         loop_timer_begin = time.time()
-        rate = rospy.Rate(FPS)
+        rate = rospy.Rate(FPS) if self.planner_type != "diffusion_policy" else rospy.Rate(10)
         start = time.time()
         while running and not rospy.is_shutdown():
             # rospy.loginfo("OBS RATE")
@@ -570,7 +573,6 @@ class Real_HIL_Runner(object):
                         # Get action from joysticksubscriber
                         u_h = torch.from_numpy(self.u_h_cb).unsqueeze(0)
                         print("human joystick action", u_h)
-
                     else:
                         u_h = keys_to_action.get(tuple(sorted(pressed_keys)), 0)
                         u_h = set_action_keyboard(u_h)
@@ -629,8 +631,6 @@ class Real_HIL_Runner(object):
                 else:
 
                     start_plan = time.time()
-
-
                     # -------------------------------------------- PLANNING PERIOD -------------------------------------------- #
 
                     # If we are in the planning period, then we need to continue updating the state history queue, get the next observation
@@ -778,10 +778,9 @@ class Real_HIL_Runner(object):
                             action_plan = result['action'][0].detach().to('cpu').numpy()
 
                             # action_plan = np_action_dict['action']
-                            u_r = torch.from_numpy(
-                                    action_plan[a_horizon_ct, :2]
-                                ).unsqueeze(0)
-                            u_r /= np.linalg.norm(u_r)
+                            u_r = action_plan[a_horizon_ct, :2]
+                            u_r /= np.linalg.norm(u_r) if np.sum(u_r) != 0. else 1.0
+                            u_r = torch.from_numpy(u_r).unsqueeze(0)
                             print("U_h plan", u_h)
                             if coplanning:
                                 print("coplanning")
@@ -861,14 +860,11 @@ class Real_HIL_Runner(object):
 
                 # Publish desired actions
                 if self.planner_type != "diffusion_policy":
-                    action_plan = u_all
+                    action_plan = u_all.detach().numpy()
 
                 send_plan_start = time.time()
-                send_plan(plan=action_plan.detach().numpy().flatten(), duration=CONST_DT, curr_pub=self.pub_action_plan)
+                send_plan(plan=action_plan[:a_horizon, :].flatten(), duration=CONST_DT, curr_pub=self.pub_action_plan)
                 print("send plan time: ", time.time() - send_plan_start)
-
-                end_pub = time.time()
-                print("uall", u_all)
 
                 if self.planner_type != "cogail":
                     obs, reward, done, info = self.env.step(u_all.detach().numpy())
@@ -943,12 +939,6 @@ class Real_HIL_Runner(object):
 
                 next_game_tick += CONST_DT
                 loops += 1
-
-            if loops == 0:
-                continue
-            else:
-                pass
-                # delta_plan_sum = delta_plan_sum / (loops)
 
 
             # Update display
