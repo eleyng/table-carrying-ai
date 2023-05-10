@@ -94,12 +94,12 @@ def main(exp_args, exp_name):
             seq_length = 1
             from cooperative_transport.gym_table.envs.table_env import TableEnv
 
-        if exp_args.planner_type == "diffusion_policy":
-            from libs.hil_real_robot_diffusion import play_hil_planner
-        # elif exp_args.planner_type == "bc_lstm_gmm":
-        #     from libs.hil_methods_bc_lstm_gmm import play_hil_planner
-        else:
-            pass
+        # if exp_args.planner_type == "diffusion_policy":
+        #     from libs.hil_real_robot_diffusion import play_hil_planner
+        # # elif exp_args.planner_type == "bc_lstm_gmm":
+        # #     from libs.hil_methods_bc_lstm_gmm import play_hil_planner
+        # else:
+        #     pass
             # from libs.hil_real_robot import play_hil_planner
         from libs.hil_real_robot import Real_HIL_Runner
 

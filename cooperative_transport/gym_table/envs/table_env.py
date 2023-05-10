@@ -142,6 +142,7 @@ class TableEnv(gym.Env):
         self.n = 2  # number of players
         # load from saved env config file
         if self.set_table is not None:
+            print("SET")
             table_cfg = self.set_table
         elif self.load_map is not None and self.run_mode == "eval":
             map_run = dict(np.load(self.load_map, allow_pickle=True))
@@ -164,7 +165,7 @@ class TableEnv(gym.Env):
             table_cfg = self.map_cfg["TABLE"][
                 random.sample(range(0, len(self.map_cfg["TABLE"])), 1)[0]
             ]
-
+        print("table_cfg", table_cfg)
         self.table = Table(
             x=table_cfg[0] * WINDOW_W,
             y=table_cfg[1] * WINDOW_H,
@@ -200,6 +201,7 @@ class TableEnv(gym.Env):
             self.obs_lst = self.set_obs  # [1]
             print("set obs: ", self.obs_lst)
             self.num_obstacles = len(self.set_obs)
+            
         else:
             # create obstacle
             self.obs_lst_idx = random.sample(
@@ -240,6 +242,8 @@ class TableEnv(gym.Env):
         ]
         if self.load_map is not None and self.run_mode == "eval":
             goal_rnd = goal_cfg
+        if self.set_goal is not None:
+            goal_rnd = self.set_goal
 
         debug_print("goal_rnd", goal_rnd)
         self.goal = np.array([goal_rnd[0] * WINDOW_W, goal_rnd[1] * WINDOW_H])
@@ -439,6 +443,7 @@ class TableEnv(gym.Env):
         include_interaction_forces_in_rewards=False,
         set_obs=None,
         set_table=None,
+        set_goal=None,
         add_buffer=False,
     ) -> None:
         """
@@ -466,6 +471,7 @@ class TableEnv(gym.Env):
         self.add_buffer = add_buffer
         self.set_obs = set_obs
         self.set_table = set_table
+        self.set_goal = set_goal
         self.ep_length = max_num_env_steps
         self.state_dim = state_dim
         self.seq_length = seq_length

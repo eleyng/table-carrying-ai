@@ -19,7 +19,7 @@ from cooperative_transport.gym_table.envs.utils import WINDOW_H, WINDOW_W, init_
 # -------------------------------------------- INIT GLOBAL REAL WORLD PARAMS -------------------------------------------- #
 odom_1 = None
 odom_2 = None
-robot_name_1 = "locobot1"
+robot_name_1 = "locobot3"
 robot_name_2 = "locobot2"
 # if not rospy.has_param("/" + robot_name_1 + "/use_base") or rospy.get_param("/" + robot_name_1 + "/use_base") == False:
 #     print("Error: robot name not found...")

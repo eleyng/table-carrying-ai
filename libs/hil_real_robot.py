@@ -547,7 +547,7 @@ class Real_HIL_Runner(object):
         
         action_plan = None
         loop_timer_begin = time.time()
-        rate = rospy.Rate(FPS) if self.planner_type != "diffusion_policy" else rospy.Rate(10)
+        rate = rospy.Rate(10) #rospy.Rate(FPS) #if self.planner_type != "diffusion_policy" else rospy.Rate(10)
         start = time.time()
         while running and not rospy.is_shutdown():
             # rospy.loginfo("OBS RATE")
@@ -875,6 +875,7 @@ class Real_HIL_Runner(object):
                 self.env.table.x = past_rod_center_pose[0]
                 self.env.table.y = past_rod_center_pose[1]
                 self.env.table.angle = past_rod_center_pose[2]
+                print("angle", self.env.table.angle)
                 self.env.redraw()
                 # print("mocap pose: ", obs)
                 loop_time = time.time() - loop_timer_begin
