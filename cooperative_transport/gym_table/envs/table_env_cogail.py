@@ -76,7 +76,6 @@ class TableEnv(gym.Env):
         if self.add_buffer:
             self.screen = pygame.display.set_mode(
                 [WINDOW_W + 2 * BUFFER_W, WINDOW_H + 2 * BUFFER_H]
-                # [WINDOW_W, WINDOW_H]
             )
         else:
             self.screen = pygame.display.set_mode(([WINDOW_W, WINDOW_H]))
@@ -164,6 +163,7 @@ class TableEnv(gym.Env):
             table_cfg = self.map_cfg["TABLE"][
                 random.sample(range(0, len(self.map_cfg["TABLE"])), 1)[0]
             ]
+
         self.table = Table(
             x=table_cfg[0] * WINDOW_W,
             y=table_cfg[1] * WINDOW_H,
@@ -197,8 +197,8 @@ class TableEnv(gym.Env):
         if self.set_obs is not None:
             self.obs_lst_idx = [i for i in range(len(self.set_obs))]
             self.obs_lst = self.set_obs  # [1]
+            print("set obs: ", self.obs_lst)
             self.num_obstacles = len(self.set_obs)
-            
         else:
             # create obstacle
             self.obs_lst_idx = random.sample(
@@ -716,12 +716,7 @@ class TableEnv(gym.Env):
             info["fluency"] = self.fluency
             if self.run_mode == "demo":
                 _ = self.reset()
-            return (
-                states,
-                reward,
-                True,
-                info,
-            )
+            return states, reward, torch.FloatTensor(np.array([[True],])), True, info, self.random_variable
         elif self.done:
             print(
                 "Collision. ",
@@ -740,12 +735,7 @@ class TableEnv(gym.Env):
             info["fluency"] = self.fluency
             if self.run_mode == "demo":
                 _ = self.reset()
-            return (
-                states,
-                reward,
-                True,
-                info,
-            )
+            return states, reward, torch.FloatTensor(np.array([[float(False)], ])), True, info, self.random_variable
         else:
             if self.n_step > self.ep_length:
                 print(
@@ -765,20 +755,11 @@ class TableEnv(gym.Env):
                 info["fluency"] = self.fluency
                 if self.run_mode == "demo":
                     _ = self.reset()
-                return (
-                    states,
-                    reward,
-                    True,
-                    info,
-                )
+                return states, reward, torch.FloatTensor(np.array([[float(False)], ])), True, info, self.random_variable
+
             else:
                 info["fluency"] = self.fluency
-                return (
-                    self.get_state(),
-                    reward,
-                    False,
-                    info,
-                )
+                return self.get_state(), reward, torch.FloatTensor(np.array([[float(False)], ])), False, info, self.random_variable
 
     def compute_fluency(self, action):
         if self.control_type == "keyboard":
@@ -999,12 +980,12 @@ class TableEnv(gym.Env):
         )
         # print("code:", self.random_variable)
 
-        # if replay: # for cogail
-        #     human_action_return = torch.FloatTensor([[0.0, 0.0]])
-        #     return self.get_state(), self.random_variable, human_action_return
-        # else:
-        #     return self.get_state(), self.random_variable
-        return self.get_state()  # , self.done
+        if replay: # for cogail
+            human_action_return = torch.FloatTensor([[0.0, 0.0]])
+            return self.get_state(), self.random_variable, human_action_return
+        else:
+            return self.get_state(), self.random_variable
+        # return self.get_state()  # , self.done
 
     def mp_check_collision_and_success(self, state) -> bool:
         """Check for collisions and success.
@@ -1192,6 +1173,7 @@ class TableEnv(gym.Env):
         state[4] = self.table.x_speed
         state[5] = self.table.y_speed
         state[6] = self.table.angle_speed
+        
 
         self.obs_hist[: -self.state_dim] = self.obs_hist[self.state_dim :]
         self.obs_hist[-self.state_dim :] = state
@@ -1199,6 +1181,7 @@ class TableEnv(gym.Env):
         self.full_observation = np.concatenate(
             (self.obs_hist, self.map_info, self.grid)
         )
+        self.current_state = np.concatenate((state, self.map_info, self.grid))
 
         return self.full_observation
 

@@ -8,18 +8,18 @@ from os.path import dirname, isdir, isfile, join
 
 import gym
 import numpy as np
+import rospy
 import torch
+from geometry_msgs.msg import PoseStamped
+from sensor_msgs.msg import Joy
 
 # Import experiment configs
 from configs.experiment.real_experiment_config import get_experiment_args
 from configs.robot.robot_planner_config import get_planner_args
 from cooperative_transport.gym_table.envs.utils import (CONST_DT, FPS,
-                                                        WINDOW_H, WINDOW_W)
-
-import rospy
-from geometry_msgs.msg import PoseStamped
-from sensor_msgs.msg import Joy
-
+                                                        WINDOW_H, WINDOW_W,
+                                                        load_cfg)
+from libs.hil_real_robot import Real_HIL_Runner
 
 VERBOSE = False  # Set to True to print debug info
 FPS = 30
@@ -53,38 +53,26 @@ def main(exp_args, exp_name):
     if not isdir(save_dir):
         mkdir(save_dir)
 
-    # Grab all GT traj files
-    FILES = [
-        # join(exp_args.data_dir, sd, ssd)
-        # for sd in listdir(exp_args.data_dir)
-        # if isdir(join(exp_args.data_dir, sd))
-        # for ssd in listdir(join(exp_args.data_dir, sd))
-        join(exp_args.data_dir, sd)
-        for sd in listdir(exp_args.data_dir)
-    ]
-    # Grab all GT map files
-    MAP_FILES = [
-        join(exp_args.map_dir, sd)
-        for sd in listdir(
-            exp_args.map_dir,
-        )
-        if isfile(join(exp_args.map_dir, sd))
-    ]
+    map_cfg_yml = load_cfg(exp_args.map_config)
+    obs_cfg = map_cfg_yml["OBSTACLES"]["POSITIONS"]
+    i = exp_args.test_idx
 
-    # ------------------------ Experiment Setup ------------------------
-    # Parameters for sampling
-    success_rate = 0
-    success_duration = 0
-    num_success = 0
-    avg_plan_time_total = 0
+    with open(join(save_dir, "success_rate_" + str(exp_args.planner_type) + "_exp-" + str(exp_args.data_dir.split("/")[-1]) + "_hact-" + str(exp_args.human_act_as_cond) + ".txt"), "a") as f:
+        
+       
+        input("Press enter to start experiment for planner " + str(exp_args.planner_type) + " subject " + str(exp_args.subject_id) + " map " + str(i) + "...")
+        obs_cfg = map_cfg_yml["OBSTACLES"]["POSITIONS"][i]
+        goal_cfg = map_cfg_yml["GOAL"][i]
+        table_cfg = map_cfg_yml["TABLE"][i]
 
-    for f_idx in range(len(FILES)):
-        # time.sleep(1)
-        f = FILES[f_idx]
-        game_str = f.split("/")
-        ep = game_str[-1]
+        # ------------------------ Experiment Setup ------------------------
+        # Parameters for sampling
+        success_rate = 0
+        success_duration = 0
+        num_success = 0
+        avg_plan_time_total = 0
+            
         robot_control = exp_args.robot_mode
-        match = [map for map in MAP_FILES if ep in map.split("/")[-1]]
 
         if exp_args.planner_type == "cogail":
             seq_length = 15
@@ -94,26 +82,20 @@ def main(exp_args, exp_name):
             seq_length = 1
             from cooperative_transport.gym_table.envs.table_env import TableEnv
 
-        # if exp_args.planner_type == "diffusion_policy":
-        #     from libs.hil_real_robot_diffusion import play_hil_planner
-        # # elif exp_args.planner_type == "bc_lstm_gmm":
-        # #     from libs.hil_methods_bc_lstm_gmm import play_hil_planner
-        # else:
-        #     pass
-            # from libs.hil_real_robot import play_hil_planner
-        from libs.hil_real_robot import Real_HIL_Runner
 
         env = TableEnv(
             render_mode=exp_args.render_mode,
             control=exp_args.human_control,
             map_config=exp_args.map_config,
-            run_mode="eval",
-            load_map=match[0],
+            run_mode="demo",
             run_name=exp_name,
             ep=exp_args.ep,
             dt=CONST_DT,
             seq_length=seq_length,
             add_buffer=exp_args.add_buffer,
+            set_obs=obs_cfg,
+            set_goal=goal_cfg,
+            set_table=table_cfg,
         )
         
 
@@ -129,13 +111,13 @@ def main(exp_args, exp_name):
             H=exp_args.H,
             skip=exp_args.skip,
             num_candidates=exp_args.BSIZE,
-            playback_trajectory=dict(np.load(f, allow_pickle=True)),
+            # playback_trajectory=dict(np.load(f, allow_pickle=True)),
             collision_checking_env=None, #collision_checking_env,
             display_pred=exp_args.display_pred,
             display_gt=exp_args.display_gt,
             display_past_states=exp_args.display_past_states,
             include_interaction_forces_in_rewards=exp_args.include_interaction_forces_in_rewards,
-            device="cpu", #torch.device("cuda") if exp_args.planner_type == "diffusion_policy" else "cpu",
+            device=torch.device("cuda") if exp_args.planner_type == "diffusion_policy" else "cpu",
         )
         rospy.Subscriber("/vrpn_client_node/table_carried/pose", PoseStamped, real_robot_env_runner.mocap_cb)
         rospy.Subscriber("/joy", Joy, real_robot_env_runner.human_action_cb, queue_size=1)
@@ -147,7 +129,7 @@ def main(exp_args, exp_name):
 
         print(
             "Run finished. Task succeeded: {0}. Duration: {1} sec. Num steps taken in env: {2}. Episode {3}. Avg plan time {4}".format(
-                success, duration, n_iter, ep, avg_plan_time
+                success, duration, n_iter, i, avg_plan_time
             )
         )
 
@@ -161,7 +143,7 @@ def main(exp_args, exp_name):
             else:
                 human_str = exp_args.human_mode
 
-            save_f = exp_name + "-" + ep
+            save_f = exp_name + "-idx_" + str(i)
 
             if exp_args.planner_type == "rrt":
                 pickle.dump(trajectory, open(join(save_dir, save_f), "wb"))
@@ -179,15 +161,7 @@ def main(exp_args, exp_name):
                     duration=trajectory["duration"],
                 )
 
-            success_rate += success
-            num_success += 1 if success else 0
-            success_duration += duration if success else 0
-    success_rate /= len(FILES)
-    success_duration /= num_success if num_success > 0 else 1
-    avg_plan_time_total /= len(FILES)
-    print("Success rate: {0}, with {1} total trials. Avg duration of {2} for {3} total successes. Avg plan time {4}.".format(success_rate, len(FILES), success_duration, num_success, avg_plan_time_total))
-    with open(join(save_dir, "success_rate_" + str(exp_args.planner_type) + "_exp-" + str(exp_args.data_dir.split("/")[-1]) + "_hact-" + str(exp_args.human_act_as_cond) + ".txt"), "a") as f:
-        f.write("{0}    Subject ID: {1}. Success rate: {2}, with {3} total trials. Avg duration of {4} for {5} total successes. Avg plan time {6}.\n".format(time.strftime("%c", time.localtime()), exp_args.subject_id, success_rate, len(FILES), success_duration, num_success, avg_plan_time_total))
+        f.write("{}    Subject ID: {}. Planner: {}. Human Cond? {}. \n\tObs: {}, Goal: {}, Init: {}.  \n\tSuccess: {}. Duration: {}. Avg plan time: {}. \n".format(time.strftime("%c", time.localtime()), exp_args.subject_id, exp_args.planner_type, exp_args.human_act_as_cond, obs_cfg, goal_cfg, table_cfg, success, duration, avg_plan_time))
 
 
 if __name__ == "__main__":
@@ -267,8 +241,8 @@ if __name__ == "__main__":
         + robot_str
         + "_H-"
         + human_str
-        + "_exp-"
-        + str(exp_args.data_dir.split("/")[-1])
+        + "_map-"
+        + str(exp_args.exp_name)
         + "_hact-"
         + str(exp_args.human_act_as_cond)
         + "_subject-"

@@ -2,6 +2,9 @@ import argparse
 
 
 def get_experiment_args(parser):
+    parser.add_argument(
+        "--test-idx", type=int, default=0, help="Test index for experiment"
+    )
     parser.add_argument("--seed", type=int, default=88, help="Seed")
 
     parser.add_argument(
@@ -15,7 +18,7 @@ def get_experiment_args(parser):
     parser.add_argument(
         "--exp-name",
         type=str,
-        default="test_p1-planner_p2-human-keyboard",
+        default="simple_map",
         help="Name of experiment. Used to name saved trajs and plots.",
     )
     parser.add_argument(
