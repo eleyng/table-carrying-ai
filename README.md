@@ -22,8 +22,6 @@ We recommend using any environment manager to keep your dependencies clean. Exam
 ```
 conda create --name table python=3.8
 conda activate table-carrying
-git clone git@github.com:eley-ng/table-carrying-ai.git
-cd table-carrying-ai
 pip install -r requirements.txt --use-deprecated=legacy-resolver
 pip install -e .
 ```
