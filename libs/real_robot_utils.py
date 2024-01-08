@@ -19,7 +19,7 @@ from cooperative_transport.gym_table.envs.utils import WINDOW_H, WINDOW_W, init_
 # -------------------------------------------- INIT GLOBAL REAL WORLD PARAMS -------------------------------------------- #
 odom_1 = None
 odom_2 = None
-robot_name_1 = "locobot3"
+robot_name_1 = "locobot1"
 robot_name_2 = "locobot2"
 # if not rospy.has_param("/" + robot_name_1 + "/use_base") or rospy.get_param("/" + robot_name_1 + "/use_base") == False:
 #     print("Error: robot name not found...")
@@ -39,12 +39,12 @@ r2y = 0
 MIN_X = -1.55 # -1.9
 MAX_X = 2.1 #1.9
 MAG_X = abs(MAX_X-MIN_X)
-MIN_Y = -1.245#-1.15 #-1.2
-MAX_Y =  1.797 #1.9 #1.0
+MIN_Y = -1.171 #-1.15 #-1.2
+MAX_Y =  1.8 #1.9 #1.0
 MAG_Y = abs(MAX_Y-MIN_Y)
 floor_scale = 20
-MAX_X_VEL_SIM = 60
-MAX_Y_VEL_SIM = 40
+MAX_X_VEL_SIM = 50
+MAX_Y_VEL_SIM = 30
 MAX_ANG_VEL_SIM = 0.6
 pix_unit_real_x = MAG_X / WINDOW_W
 pix_unit_real_y = MAG_Y / WINDOW_H
@@ -80,7 +80,7 @@ def send_plan(plan=None, duration=1/30, curr_pub=None):
     curr_pub: publisher to publish velocity command
     """
     time_start = rospy.get_time()
-    r = rospy.Rate(30)
+    r = rospy.Rate(5)
     while (rospy.get_time() < (time_start + duration)):
         print(plan, plan.shape, type(plan))
         curr_pub.publish(Float64MultiArray(data=plan))

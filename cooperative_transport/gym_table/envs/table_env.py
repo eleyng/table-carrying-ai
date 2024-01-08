@@ -164,6 +164,7 @@ class TableEnv(gym.Env):
             table_cfg = self.map_cfg["TABLE"][
                 random.sample(range(0, len(self.map_cfg["TABLE"])), 1)[0]
             ]
+
         self.table = Table(
             x=table_cfg[0] * WINDOW_W,
             y=table_cfg[1] * WINDOW_H,
@@ -197,8 +198,8 @@ class TableEnv(gym.Env):
         if self.set_obs is not None:
             self.obs_lst_idx = [i for i in range(len(self.set_obs))]
             self.obs_lst = self.set_obs  # [1]
+            print("set obs: ", self.obs_lst)
             self.num_obstacles = len(self.set_obs)
-            
         else:
             # create obstacle
             self.obs_lst_idx = random.sample(
@@ -1101,7 +1102,7 @@ class TableEnv(gym.Env):
 
         pygame.display.update()
 
-    def render(self, mode: str = "human") -> Union[np.ndarray, None]:
+    def render(self, mode: str = "human", path: str = None, n_step: int = None) -> Union[np.ndarray, None]:
         """Renders an image.
 
         Parameters
@@ -1115,13 +1116,19 @@ class TableEnv(gym.Env):
             If mode is "human", then return nothing and update the viewer.
             If mode is "rgb_array", then return an image as np array to be rendered.
         """
-        img4disp = self.get_image()
 
-        if self.n_step % 10 == 0:
+        if n_step is None:
+            n_step = self.n_step
+
+        img4disp = self.get_image()
+        if not os.path.exists(path + "/img"):
+            os.makedirs(path + "/img")
+
+        if n_step % 1 == 0:
             img = cv.cvtColor(img4disp, cv.COLOR_BGR2RGB)
             img = Image.fromarray(img)
             img = img.resize((WINDOW_W, WINDOW_H))
-            # img.save(os.path.join(self.dirname_vis_ep, str(self.n_step) + ".png"))
+            img.save(path + "/img/" + str(n_step) + ".png")
 
         if mode == "human":
             pass

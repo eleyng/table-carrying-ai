@@ -37,9 +37,8 @@ from libs.real_robot_utils import (reset_odom, euler_from_quaternion,
 # 3. Computing and publishing action plan
 ############################################################################################################
 
-
-
 SKIP_FRAME = 3
+trained_models_dir = os.path.join(os.getcwd(), '../trained_models')
 
 class Real_HIL_Runner(object):
     """
@@ -235,9 +234,7 @@ class Real_HIL_Runner(object):
 
         
     def play_hil_planner(self):
-        
-        # set planner param
-        rospy.set_param('/planner_type', str(self.planner_type))
+    
 
         # Create variables
         global past_rod_center_vec
@@ -316,7 +313,7 @@ class Real_HIL_Runner(object):
             if self.planner_type == "vrnn":
                 sys.path.append(join(dirname(__file__), "..", "algo", "planners", "cooperative_planner"))
                 from algo.planners.cooperative_planner.models import VRNN
-                self.artifact_path = join("/home/eleyng/table-carrying-ai/trained_models/vrnn/model.ckpt")
+                self.artifact_path = join(trained_models_dir + "/vrnn/model.ckpt")
                 model = VRNN.load_from_checkpoint(self.artifact_path, map_location=torch.device('cpu'))
                 model.eval()
                 model.batch_size = self.num_candidates
@@ -357,10 +354,10 @@ class Real_HIL_Runner(object):
 
                 # load checkpoint
                 if self.mcfg.human_act_as_cond:
-                    ckpt_path = join("/home/eleyng/table-carrying-ai/trained_models/diffusion/model_human_act_as_cond_10Hz.ckpt")
+                    ckpt_path = join(trained_models_dir + "/diffusion/model_human_act_as_cond_10Hz.ckpt")
                     print('Using human actions!')
                 else:
-                    ckpt_path = join("/home/eleyng/table-carrying-ai/trained_models/diffusion/model_10Hz.ckpt")
+                    ckpt_path = join(trained_models_dir + "/diffusion/model_10Hz.ckpt")
                     print('Not using human actions!')
                 
                 payload = torch.load(open(ckpt_path, 'rb'), pickle_module=dill)
@@ -371,14 +368,14 @@ class Real_HIL_Runner(object):
                 workspace.load_payload(payload, exclude_keys=None, include_keys=None)
 
                 # configure env and create policy
-                a_horizon = 3
+                a_horizon = 1
                 
 
                 policy : dp_policy.DiffusionTransformerLowdimPolicy
                 policy = workspace.model
                 
                 policy.eval().to(self.device)
-                policy.num_inference_steps = 100
+                policy.num_inference_steps = 34
                 policy.n_action_steps = policy.horizon - policy.n_obs_steps + 1
 
                 # global FPS, CONST_DT, MAX_FRAMESKIP, SKIP_FRAME
@@ -437,7 +434,7 @@ class Real_HIL_Runner(object):
                 actor_critic.eval().to(self.device)
 
                 # Load model
-                model_path = "/home/eleyng/table-carrying-ai/trained_models/cogail/model.pt"
+                model_path = trained_models_dir + "/cogail/model.pt"
                 ckpt = torch.load(model_path, map_location=torch.device('cpu'))
                 actor_critic.load_state_dict(ckpt)
 
@@ -452,9 +449,9 @@ class Real_HIL_Runner(object):
                 from robomimic.envs.env_base import EnvBase
 
                 if self.mcfg.human_act_as_cond:
-                    model_path = "/home/eleyng/table-carrying-ai/trained_models/bc_lstm_gmm/model_human_act_as_cond.pth"
+                    model_path = trained_models_dir + "/bc_lstm_gmm/model_human_act_as_cond.pth"
                 else:
-                    model_path = "/home/eleyng/table-carrying-ai/trained_models/bc_lstm_gmm/model.pth"
+                    model_path = trained_models_dir + "/bc_lstm_gmm/model.pth"
                 policy, ckpt_dict = FileUtils.policy_from_checkpoint(ckpt_path=model_path, device=self.device, verbose=True)
                 config, _ = FileUtils.config_from_checkpoint(ckpt_dict=ckpt_dict)
                 rollout_horizon = config.experiment.rollout.horizon
@@ -463,7 +460,6 @@ class Real_HIL_Runner(object):
                 policy.start_episode()
 
             else:
-                print("Invalid planner type, ", self.planner_type)
                 raise ValueError("Invalid planner type")
 
         # ----------------------------------------------------- SIMULTAOR SETUP -----------------------------------------------#
@@ -550,7 +546,7 @@ class Real_HIL_Runner(object):
         
         action_plan = None
         loop_timer_begin = time.time()
-        rate = rospy.Rate(10) #rospy.Rate(FPS) #if self.planner_type != "diffusion_policy" else rospy.Rate(10)
+        rate = rospy.Rate(FPS) if self.planner_type != "diffusion_policy" else rospy.Rate(10)
         start = time.time()
         while running and not rospy.is_shutdown():
             # rospy.loginfo("OBS RATE")
@@ -804,7 +800,6 @@ class Real_HIL_Runner(object):
 
                         delta_plan = time.time() - start_plan
                         delta_plan_sum += delta_plan
-                        print("DEVICEEEEEEE", self.device)
 
 
                     elif self.planner_type == "bc_lstm_gmm":
@@ -872,7 +867,6 @@ class Real_HIL_Runner(object):
 
                 if self.planner_type != "cogail":
                     obs, reward, done, info = self.env.step(u_all.detach().numpy())
-                    # print("fluency", info["fluency"]["inter_f"])
                 else:
                     obs, reward, succ, done, info, random_seed = self.env.step(u_all.detach().numpy())
 
@@ -882,7 +876,7 @@ class Real_HIL_Runner(object):
                 self.env.table.angle = past_rod_center_pose[2]
                 print("angle", self.env.table.angle)
                 self.env.redraw()
-                print("mocap pose: ", obs)
+                # print("mocap pose: ", obs)
                 loop_time = time.time() - loop_timer_begin
                 # print("loop time", loop_time)
                 loop_timer_begin = time.time()
@@ -907,17 +901,14 @@ class Real_HIL_Runner(object):
                     past_states.append(obs.tolist())
                     self.env.draw_past_states(past_states)
 
-                save_state = torch.from_numpy(np.array([self.env.table.x, self.env.table.y, self.env.table.angle], dtype=np.float32))
-                trajectory["states"].append(save_state)
-
-                # if self.planner_type in ["bc_lstm_gmm", "vrnn"]:
-                #     trajectory["states"].append(obs)
-                # elif self.planner_type in ["cogail"]:
-                #     trajectory["states"].append(torch.from_numpy(self.env.current_state))
-                # elif self.planner_type in ["diffusion_policy"]:
-                #     trajectory["states"].append(obs_t[-1, ...]) #should be torch
-                # else:
-                #     trajectory["states"].append(obs[-1, ...])
+                if self.planner_type in ["bc_lstm_gmm", "vrnn"]:
+                    trajectory["states"].append(obs)
+                elif self.planner_type in ["cogail"]:
+                    trajectory["states"].append(torch.from_numpy(self.env.current_state))
+                elif self.planner_type in ["diffusion_policy"]:
+                    trajectory["states"].append(obs_t[-1, ...]) #should be torch
+                else:
+                    trajectory["states"].append(obs[-1, ...])
 
                 if self.robot == "planner":
                     if self.planner_type == "vrnn":
@@ -976,8 +967,9 @@ class Real_HIL_Runner(object):
             rate.sleep()
         stop = time.time()
         duration = stop - start
-        # print("Average planning time per planning loop: ", delta_plan_sum / plan_cter)
-        # print("Duration of run: ", duration)
+        print("Average planning time per planning loop: ", delta_plan_sum / plan_cter)
+        print("Duration of run: ", duration)
+        print("Fluency: ", np.max(self.env.fluency["inter_f"]), np.min(self.env.fluency["inter_f"]))
 
         if self.planner_type == "diffusion_policy":
             self.env.close()
@@ -987,16 +979,15 @@ class Real_HIL_Runner(object):
 
         if not (self.human == "data" and self.robot == "data"):
             # Save trajectory
-            trajectory["states"] = torch.stack(trajectory["states"], dim=0).numpy()
-            # if self.planner_type in ["bc_lstm_gmm", "cogail"]:
-            #     trajectory["states"] = torch.stack(trajectory["states"], dim=0).numpy()
-            # elif not isinstance(trajectory["states"], torch.Tensor):
-            #     if self.planner_type == "diffusion_policy":
-            #         trajectory["states"] = np.array(trajectory["states"])
-            #     # elif self.planner_type == "cogail":
-            #     #     trajectory["states"] = np.array(trajectory["states"])[:, -1, :]
-            #     elif self.planner_type == "vrnn":
-            #         trajectory["states"] = torch.stack(trajectory["states"], dim=0).numpy()
+            if self.planner_type in ["bc_lstm_gmm", "cogail"]:
+                trajectory["states"] = torch.stack(trajectory["states"], dim=0).numpy()
+            elif not isinstance(trajectory["states"], torch.Tensor):
+                if self.planner_type == "diffusion_policy":
+                    trajectory["states"] = np.array(trajectory["states"])
+                # elif self.planner_type == "cogail":
+                #     trajectory["states"] = np.array(trajectory["states"])[:, -1, :]
+                elif self.planner_type == "vrnn":
+                    trajectory["states"] = torch.stack(trajectory["states"], dim=0).numpy()
             if self.robot == "planner":
                 if self.planner_type == "vrnn":
                     trajectory["plan"] = torch.stack(trajectory["plan"], dim=0).numpy()

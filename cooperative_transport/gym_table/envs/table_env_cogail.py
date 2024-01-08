@@ -427,7 +427,7 @@ class TableEnv(gym.Env):
         seq_length=1,
         obs="discrete",
         control="joystick",
-        map_config="/home/eleyng/diffusion_policy/diffusion_policy/env/cooperative_transport/gym_table/config/maps/rnd_obstacle_v2.yml",
+        map_config=os.path.join(os.path.dirname(os.path.realpath(__file__)), "../config/maps/rnd_obstacle_v2.yml"),
         load_map=None,
         occupancy_grid=False,
         run_mode="demo",
@@ -692,11 +692,6 @@ class TableEnv(gym.Env):
         self.random_variable = (
             self.pivot[self.pivot_id].view(1, 2) + self.random_variable_noise
         )
-
-        # return self.get_state(), torch.FloatTensor([[float(reward)],]), [self.done], [info], self.random_variable
-        # return self.get_state(), torch.FloatTensor([[float(self.success)],]), [self.done], [info], self.random_variable
-
-        # returns obs, reward, success, done, infos, random_seed
 
         if self.success:
             print(
